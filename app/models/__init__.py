@@ -4,3 +4,6 @@ from app.models.material import Material
 from app.models.material_chunk import MaterialChunk
 from app.models.chat_session import ChatSession
 from app.models.chat_message import ChatMessage
+from app.models.task import Task
+from app.models.study_plan import StudyPlan
+from app.models.study_plan_task import StudyPlanTask

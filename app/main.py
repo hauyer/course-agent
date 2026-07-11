@@ -10,8 +10,20 @@ from app.models import (
     MaterialChunk,
     ChatSession,
     ChatMessage,
+    Task,
+    StudyPlan,
+    StudyPlanTask,
 )
-from app.routers import auth,courses,materials,search,agent
+from app.routers import (
+    auth,
+    courses,
+    materials,
+    search,
+    agent,
+    tasks,
+    study_plans,
+)
+
 
 #启动时自动创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -57,6 +69,20 @@ app.include_router(
     agent.router,
     prefix="/api",
     tags=["Agent问答"],
+)
+
+# 将任务路由注册到应用中，所有与学习计划和待办任务相关的API都以 /api/tasks/ 开头
+app.include_router(
+    tasks.router,
+    prefix="/api/tasks",
+    tags=["待办任务"],
+)
+
+# 将学习计划路由注册到应用中，所有与学习计划相关的API都以 /api/study-plans/ 开头
+app.include_router(
+    study_plans.router,
+    prefix="/api/study-plans",
+    tags=["学习计划"],
 )
 
 # 定义根路径的GET请求处理函数，返回一个欢迎信息和应用状态
