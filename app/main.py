@@ -3,8 +3,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.database import Base, engine, get_db
-from app.models import User, Course
-from app.routers import auth,courses,materials,search
+from app.models import (
+    User,
+    Course,
+    Material,
+    MaterialChunk,
+    ChatSession,
+    ChatMessage,
+)
+from app.routers import auth,courses,materials,search,agent
 
 #启动时自动创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -43,6 +50,13 @@ app.include_router(
     search.router,
     prefix="/api",
     tags=["向量检索"]
+)
+
+# 将Agent路由注册到应用中，所有与Agent问答相关的API都以 /api/agent/ 开头
+app.include_router(
+    agent.router,
+    prefix="/api",
+    tags=["Agent问答"],
 )
 
 # 定义根路径的GET请求处理函数，返回一个欢迎信息和应用状态
