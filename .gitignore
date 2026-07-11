@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+
+# Environment
+.env
+
+# Claude AI
+.claude/
+
+# Local data
+chroma_db/
+uploads/
