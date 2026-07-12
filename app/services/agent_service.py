@@ -9,7 +9,7 @@ from langchain_core.messages import (
 )
 from sqlalchemy.orm import Session
 
-from app.agent.llm import get_chat_model
+from app.agent.agent_kernel.config import init_model as get_chat_model
 from app.services.vector_service import semantic_search
 
 
