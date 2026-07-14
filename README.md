@@ -1,29 +1,85 @@
-# 课程学习助手
+# 课程学习助手（Course Desk）
 
-面向课程资料管理与持续学习的本地桌面应用。项目由 React/Vite/Electron 前端与 FastAPI 后端组成，使用 MySQL 保存结构化数据，ChromaDB 保存本地向量索引。课程、资料检索、Agent 多轮问答、任务、学习计划、学习记录、笔记、Notion/Obsidian 同步和运行审计均在同一工作台中完成。
+一个面向高校课程学习场景的本地桌面工作台。它将课程、资料、知识检索、任务、学习计划、学习记录、笔记和 AI 课程问答整合在同一套界面中，帮助学习者把分散的文件和学习安排整理成可持续推进的学习流程。
 
-## 仓库结构
+项目采用 React + Electron 构建桌面端，FastAPI 提供业务与 Agent 服务，MySQL 保存结构化数据，ChromaDB 负责课程资料的本地向量检索。
 
-```text
-course-agent-backend/   FastAPI、Agent、MySQL 模型、文件解析与向量检索
-course-agent-frontend/  React/Vite 页面、Electron 宿主与桌面打包配置
-README.md               本说明
-.gitignore              统一忽略本机依赖、数据、密钥与构建产物
+## 主要功能
+
+- **今日总览**：汇总待办任务、进行中计划、课程资料和近 14 天学习投入。
+- **课程管理**：维护课程名称、教师、学期和课程说明，并支持搜索与筛选。
+- **资料库**：上传并解析 PDF、Word、PowerPoint、Markdown 和文本资料，后台完成分块与向量化。
+- **知识检索**：限定指定课程检索原文片段，展示页码、相关度和资料来源。
+- **任务管理**：按状态和优先级管理学习任务，任务完成后自动计入学习时长。
+- **学习计划**：将阶段目标拆分为每日任务，也可以让 Agent 根据已有课程生成计划。
+- **学习记录**：记录实际投入、学习内容与复盘想法，形成可回顾的学习轨迹。
+- **笔记系统**：创建、阅读和编辑 Markdown 笔记，以排版后的阅读视图呈现，并支持 Notion、Obsidian 同步。
+- **课程问答**：围绕指定课程资料进行多轮对话，保留会话上下文，并以可折叠过程展示 Agent 与工具执行状态。
+- **运行审计**：查看 Agent 请求的 trace ID、耗时、模型调用、工具错误和 token 使用情况。
+- **数据迁移**：通过应用内备份包导出和导入个人课程数据。
+
+## 系统架构
+
+```mermaid
+flowchart LR
+    UI["React / Vite 界面"] --> Electron["Electron 桌面宿主"]
+    Electron --> API["FastAPI 服务"]
+    API --> MySQL["MySQL 业务数据"]
+    API --> Chroma["ChromaDB 向量索引"]
+    API --> Agent["课程 Agent"]
+    Agent --> LLM["外部大模型 API"]
+    Agent --> Chroma
+    API --> Files["本地课程资料"]
+    API --> Integrations["Notion / Obsidian"]
 ```
 
-以下目录会保留在开发电脑上，但不会上传 GitHub：`.venv`、`node_modules`、`build`、`dist`、`release`、`uploads`、`chroma_db`。删除 `.venv` 或 `node_modules` 后可以重新安装，但并不是提交代码前必须删除；`.gitignore` 已足够阻止它们被提交。`uploads`、`chroma_db` 和 `.env` 是本机数据/配置，更不应提交。
+桌面发行版会自动拉起内置的 FastAPI 可执行程序，不需要用户单独安装 Python；MySQL 仍由用户在本机安装和管理。
 
-## 环境要求
+## 技术栈
 
-- Windows 10/11
-- MySQL 8.0+
-- Python 3.13（当前项目已验证 3.13.9）
-- Node.js 24（当前项目已验证 24.15.0）
-- 可选：Tesseract OCR，用于没有可用文本层的扫描 PDF
+| 层级 | 技术 |
+| --- | --- |
+| 桌面端 | Electron、electron-builder |
+| 前端 | React、TypeScript、Vite、Recharts、React Markdown、KaTeX |
+| 后端 | FastAPI、SQLAlchemy、Pydantic |
+| Agent | LangGraph/LangChain 风格状态编排、流式事件、会话记忆 |
+| 数据 | MySQL、ChromaDB、本地文件存储 |
+| 文档处理 | PyMuPDF、Office/文本解析、可选 OCR |
 
-## 安全配置 MySQL
+## 项目结构
 
-不要让应用使用 MySQL `root` 账号。先登录 MySQL，创建独立数据库和最小权限账号；下面的强密码仅是占位符，必须替换：
+```text
+course-agent/
+├─ course-agent-backend/       FastAPI、Agent、数据库、资料解析和向量检索
+│  ├─ app/
+│  │  ├─ agent/                Agent 状态、工具与接口
+│  │  ├─ routers/              REST API 路由
+│  │  ├─ models/               SQLAlchemy 数据模型
+│  │  ├─ schemas/              请求与响应模型
+│  │  └─ services/             文档、向量、备份、审计等服务
+│  ├─ requirements.txt
+│  └─ .env.example
+├─ course-agent-frontend/      React 页面与 Electron 桌面程序
+│  ├─ src/features/            课程、资料、问答、计划、笔记等业务模块
+│  ├─ src/components/          通用组件
+│  ├─ electron/                桌面主进程与运行配置
+│  └─ package.json
+├─ .github/workflows/          持续集成检查
+└─ README.md
+```
+
+## 下载与使用
+
+Windows 用户可在仓库的 [Releases](https://github.com/hauyer/course-agent/releases) 页面下载：
+
+- **安装版**：支持选择安装目录，并创建桌面快捷方式。
+- **便携版**：无需安装，直接运行，适合放在移动硬盘或临时环境中使用。
+
+两个版本都已经包含前端、FastAPI 后端、Python 运行时和必要依赖，但不包含 MySQL 服务、真实数据库密码或大模型 API Key。
+
+### 1. 准备 MySQL
+
+推荐使用 MySQL 8.0 或更高版本。不要让应用直接使用 `root` 账号，可以在 MySQL 中创建独立数据库和最小权限用户：
 
 ```sql
 CREATE DATABASE course_agent
@@ -31,46 +87,63 @@ CREATE DATABASE course_agent
   COLLATE utf8mb4_unicode_ci;
 
 CREATE USER 'course_agent'@'localhost'
-  IDENTIFIED BY '请替换为至少16位的随机强密码';
+  IDENTIFIED BY '请替换为自己的强密码';
 
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
   ON course_agent.* TO 'course_agent'@'localhost';
+
 FLUSH PRIVILEGES;
 ```
 
-如果程序和 MySQL 不在同一台电脑，应限制数据库防火墙来源、启用 TLS，并把 `'localhost'` 替换成明确的客户端主机；不要把 3306 端口直接暴露到公网。
+数据库默认连接地址为 `127.0.0.1:3306`。首次运行发行版时，按界面填写数据库名、用户名和密码；验证成功后程序会启动后端并进入登录页。数据库密码使用 Electron `safeStorage` 与当前 Windows 用户凭据加密，不会写入安装包或上传到 GitHub。
 
-## 开发运行
+### 2. 创建应用账号
 
-### 1. 后端
+程序没有预设用户名和密码。第一次进入登录页时点击“没有账户？创建一个”，注册自己的本地账号即可。
+
+### 3. 配置大模型
+
+登录后打开“设置”，先验证当前账号密码，再填写兼容的外部大模型 API Key。密钥只保存在本机配置中，不应写入源码或提交到仓库。
+
+## 本地开发
+
+### 环境要求
+
+- Windows 10/11
+- Python 3.13（当前开发环境验证版本为 3.13.9）
+- Node.js 24（当前开发环境验证版本为 24.15.0）
+- MySQL 8.0+
+- 可选：Tesseract OCR，用于识别扫描版 PDF
+
+### 1. 启动后端
 
 ```powershell
 cd course-agent-backend
 Copy-Item .env.example .env
-```
-
-编辑 `.env`，至少填写 `DATABASE_URL`、随机 `SECRET_KEY` 和所用模型的 API Key。真实 `.env` 已被 Git 忽略。
-
-首次安装依赖：
-
-```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-已有 `.venv` 时不需要重复安装。启动后端：
+编辑 `.env`，至少配置数据库连接和 JWT 密钥：
+
+```env
+DATABASE_URL=mysql+pymysql://course_agent:你的密码@127.0.0.1:3306/course_agent?charset=utf8mb4
+SECRET_KEY=请替换为随机生成的长字符串
+```
+
+如需使用 Agent，在 `.env` 中继续配置模型名称和对应的 API Key。随后启动服务：
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-首次启动会在已创建的 MySQL 数据库中建立所需数据表。健康检查地址为 `http://127.0.0.1:8000/health`。
+后端健康检查：<http://127.0.0.1:8000/health>
 
-### 2. 前端
+### 2. 启动前端
 
-另开一个 PowerShell：
+另开一个 PowerShell 窗口：
 
 ```powershell
 cd course-agent-frontend
@@ -78,77 +151,60 @@ npm install
 npm run dev
 ```
 
-访问 Vite 输出的本地地址。开发环境通过 Vite 代理连接 `127.0.0.1:8000`。
+开发环境通过 Vite 代理访问 `127.0.0.1:8000`。
 
-## 构建桌面程序
+## 构建 Windows 桌面程序
 
 ```powershell
 cd course-agent-frontend
+npm install
 npm run dist
 ```
 
-该命令会先通过 PyInstaller 构建内嵌 FastAPI 后端，再构建前端并生成 Electron 安装版与便携版。产物位于 `course-agent-frontend/release/`，属于可再生成文件，因此不提交 Git；需要对外发布时请上传到 GitHub Releases。
+构建流程会先使用 PyInstaller 打包 FastAPI 后端，再构建 React 前端，最后由 electron-builder 生成安装版和便携版。产物位于：
 
-桌面包不再携带源码目录中的真实 `.env`。用户第一次打开程序时会看到 MySQL 配置页；数据库密码与程序生成的 JWT 密钥通过 Electron `safeStorage` 使用当前 Windows 登录凭据加密，配置文件保存在当前系统用户的应用数据目录。密钥不会写入安装目录，也不会通过 Git 分发。
-
-> 桌面程序包含 Python 运行环境和必要依赖，但 MySQL 服务仍需用户自行安装、启动并创建数据库。向量模型第一次使用时可能需要联网下载，之后使用本地缓存。
-
-## 文件上传与后台处理
-
-上传接口收到文件并创建资料记录后立即返回，解析、分块和向量化在后端继续执行。前端提供上传进度与后台处理状态；在课程、任务等页面之间切换不会取消当前上传队列。大文件仍受后端大小限制，扫描 PDF 的 OCR 耗时取决于页数和电脑性能。
-
-## 数据备份与迁移
-
-登录后打开“设置 → 数据备份与迁移”：
-
-1. 输入当前登录密码导出 ZIP；
-2. 在新电脑配置新的 MySQL 后，创建并登录目标账号；
-3. 导入 ZIP，程序会重新映射主键、复制资料并重建向量索引。
-
-备份包含课程、资料、任务、计划、笔记、对话、学习记录和 Agent 长期记忆，不包含登录密码、外部大模型 API Key、Notion Token、Obsidian 路径或第三方同步状态。归档文件会校验大小、路径和 SHA-256；备份仍可能含私人课程资料，请加密保管，不要提交到 GitHub。
-
-如需数据库管理员级灾备，可另外使用 MySQL 官方工具：
-
-```powershell
-mysqldump --single-transaction --routines --triggers -u course_agent -p course_agent > course_agent.sql
-mysql -u course_agent -p course_agent < course_agent.sql
+```text
+course-agent-frontend/release/
+├─ 课程学习助手-安装版-1.0.0-x64.exe
+└─ 课程学习助手-便携版-1.0.0-x64.exe
 ```
 
-应用内备份适合账号迁移；`mysqldump` 适合整库运维，两者用途不同。
+发行包体积较大，应上传到 GitHub Releases，不要直接提交进 Git 仓库。
 
-## GitHub 提交检查
+## 数据与隐私
 
-初始化根仓库后，提交前执行：
+- `.env`、API Key、数据库密码不会提交到仓库。
+- `uploads/` 保存本地课程资料，`chroma_db/` 保存可重建的向量索引。
+- 应用内导出包包含课程、任务、计划、笔记、学习记录和对话等个人数据，请妥善保管。
+- 导出包不包含登录密码、大模型 API Key、Notion Token 和本机 Obsidian 路径。
+- 更换电脑时，应先安装 MySQL、创建空数据库和应用账号，再通过“设置 → 数据备份与迁移”导入备份。
+- 不建议将 MySQL 3306 端口直接暴露到公网；跨设备连接时应限制来源并启用 TLS。
 
-```powershell
-git status --short --ignored
-git check-ignore -v course-agent-backend/.env
-git check-ignore -v course-agent-backend/.venv/Scripts/python.exe
-git check-ignore -v course-agent-frontend/node_modules
-git check-ignore -v course-agent-frontend/release
-```
+## 资料解析说明
 
-然后确认待提交列表中没有 `.env`、数据库密码、API Key、上传文件、向量库、虚拟环境、依赖目录或 EXE。若真实密钥曾经进入 Git 历史，仅添加 `.gitignore` 并不能消除泄漏，必须立即轮换密钥，并使用历史清理工具处理远程仓库。
+普通文本 PDF 会直接提取文本；扫描版 PDF 可通过 OCR 辅助识别。若原文件的字体映射或数学公式在解析阶段已经丢失，程序只能标记文本层质量问题，无法凭空恢复原始字符。遇到此类资料时，建议更换带有正常文本层的 PDF，或使用 OCR 版本重新上传。
 
-建议将源码推送到私有仓库完成首次安全审查，再根据需要公开。安装程序使用 GitHub Releases 分发，不要混入源码提交。
-
-## 常用验证
+## 常用检查
 
 ```powershell
-# 后端语法与导入检查
+# 后端语法检查
 cd course-agent-backend
 .\.venv\Scripts\python.exe -m compileall -q app
-.\.venv\Scripts\python.exe -c "from app.main import app; print(len(app.routes))"
 
 # 前端类型检查与生产构建
 cd ..\course-agent-frontend
 npm run build
 ```
 
-## 故障定位
+## 常见问题
 
-- MySQL 连接失败：确认服务已启动、数据库已创建、账号主机范围和密码正确。
-- 上传后一直“处理中”：查看资料状态与桌面应用数据目录中的 `backend.log`。
-- 首次检索较慢：本地嵌入模型可能正在下载或加载。
-- 扫描 PDF 内容不完整：安装 Tesseract OCR；若原文件字体映射已损坏，程序会提示文本层质量问题，但不能凭空恢复丢失字符。
-- 打包空间不足：`.venv`、PyInstaller `build/dist` 和 Electron `release` 会同时占用较多空间，可在确认不需要旧产物后手动清理；清理前不影响源码提交。
+- **程序无法进入登录页**：确认 MySQL 服务正在运行，数据库、账号和密码与配置一致。
+- **端口 8000 被占用**：关闭之前残留的课程学习助手或 Python 后端进程后重试。
+- **上传后长时间处理中**：大文件解析、OCR 和首次向量模型加载需要时间，可在资料库查看后台状态。
+- **第一次检索较慢**：嵌入模型可能正在首次下载或加载，完成后会使用本地缓存。
+- **对话无法回答课程内容**：确认资料已经完成解析和向量化，并在问答页面选择了正确课程。
+
+## 仓库
+
+- GitHub：<https://github.com/hauyer/course-agent>
+- 问题反馈：<https://github.com/hauyer/course-agent/issues>
