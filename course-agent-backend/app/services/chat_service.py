@@ -121,6 +121,7 @@ def save_chat_exchange(
     user_content: str,
     assistant_content: str,
     citations: list[dict[str, Any]],
+    agent_trace: list[dict[str, Any]] | None = None,
 ) -> tuple[ChatMessage, ChatMessage]:
     """
     一次性保存用户问题和 Agent 回答。
@@ -137,6 +138,7 @@ def save_chat_exchange(
         role="assistant",
         content=assistant_content,
         citations=citations,
+        agent_trace=agent_trace,
     )
 
     session.updated_at = datetime.now(timezone.utc)
@@ -189,12 +191,14 @@ def save_assistant_message(
     session: ChatSession,
     content: str,
     citations: list[dict[str, Any]],
+    agent_trace: list[dict[str, Any]] | None = None,
 ) -> ChatMessage:
     message = ChatMessage(
         session_id=session.id,
         role="assistant",
         content=content,
         citations=citations,
+        agent_trace=agent_trace,
     )
     session.updated_at = datetime.now(timezone.utc)
     db.add(message)

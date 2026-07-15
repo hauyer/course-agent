@@ -133,6 +133,7 @@ class AgentInterface:
         course_id: str = "",
         top_k: int = 5,
         history: list[dict] | None = None,
+        citation_context: str = "",
     ) -> AsyncIterator[dict]:
         """
         流式对话接口，返回异步迭代器供后端通过 SSE 推送给前端。
@@ -181,8 +182,24 @@ class AgentInterface:
             {"type": "done"}
         """
 
+        context_messages = []
+        if citation_context:
+            context_messages.append(
+                SystemMessage(
+                    content=(
+                        "[当前课程的已验证资料上下文]\n"
+                        "以下片段由系统实际检索并校验。只能使用其中存在的 "
+                        "[C1]、[C2] 等编号；不得编造引用。涉及资料内容的关键结论"
+                        "应附相应编号。资料不足时明确说明当前课程资料中未检索到足够依据。\n\n"
+                        f"{citation_context}"
+                    )
+                )
+            )
+
         input_data = {
-            "messages": self._history_messages(history) + [HumanMessage(content=message)],
+            "messages": context_messages
+            + self._history_messages(history)
+            + [HumanMessage(content=message)],
             "user_id": user_id,
             "course_id": course_id,
             "top_k": top_k,

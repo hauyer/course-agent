@@ -27,7 +27,10 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentCitationItem(BaseModel):
+    citation_id: str
     index: int
+    course_id: int
+    course_name: str
     material_id: int
     material_title: str
     chunk_id: int
@@ -63,8 +66,9 @@ class ChatMessageResponse(BaseModel):
     session_id: int
     role: str
     content: str
-    # 兼容资料引用和持久化的 Agent 执行轨迹。
+    # citations 只保存经过权限校验的资料引用。
     citations: Optional[list[dict[str, Any]]] = None
+    agent_trace: Optional[list[dict[str, Any]]] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

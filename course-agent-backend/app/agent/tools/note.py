@@ -10,7 +10,10 @@ def _config_int(config: RunnableConfig | None, key: str, default: int = 0) -> in
 
 
 def _user_id(config: RunnableConfig | None) -> int:
-    return _config_int(config, "user_id", 1)
+    value = _config_int(config, "user_id", 0)
+    if value < 1:
+        raise ValueError("无法确定当前用户")
+    return value
 
 
 def _course_id(course_id: int, config: RunnableConfig | None) -> int:

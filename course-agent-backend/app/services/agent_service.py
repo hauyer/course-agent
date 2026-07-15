@@ -10,7 +10,10 @@ from langchain_core.messages import (
 from sqlalchemy.orm import Session
 
 from app.agent.agent_kernel.config import init_model as get_chat_model
-from app.services.vector_service import semantic_search
+from app.services.citation_service import (
+    build_agent_citation_context,
+    retrieve_course_chunks,
+)
 
 
 SYSTEM_PROMPT = """
@@ -21,7 +24,7 @@ SYSTEM_PROMPT = """
 回答规则：
 1. 不得编造课程资料中没有出现的事实。
 2. 优先直接回答用户问题，再进行必要解释。
-3. 引用资料时使用 [1]、[2] 这样的编号。
+3. 引用资料时使用 [C1]、[C2] 这样的编号。
 4. 引用编号必须与提供的资料片段编号一致。
 5. 如果资料不足以回答，应明确说明“当前课程资料不足以回答该问题”。
 6. 使用清晰、准确、适合大学生学习的中文。
@@ -33,27 +36,7 @@ def _build_context(search_results: list[dict[str, Any]]) -> str:
     """
     将语义检索结果转换成提供给大模型的课程资料上下文。
     """
-    context_blocks: list[str] = []
-
-    for index, item in enumerate(search_results, start=1):
-        page_text = (
-            f"第 {item['page_no']} 页"
-            if item.get("page_no") is not None
-            else "页码未知"
-        )
-
-        context_blocks.append(
-            "\n".join(
-                [
-                    f"[{index}]",
-                    f"资料名称：{item['material_title']}",
-                    f"位置：{page_text}",
-                    f"资料片段：{item['content']}",
-                ]
-            )
-        )
-
-    return "\n\n".join(context_blocks)
+    return build_agent_citation_context(search_results)
 
 
 def _build_citations(
@@ -62,23 +45,7 @@ def _build_citations(
     """
     把检索结果转换成接口返回的引用列表。
     """
-    citations: list[dict[str, Any]] = []
-
-    for index, item in enumerate(search_results, start=1):
-        citations.append(
-            {
-                "index": index,
-                "material_id": item["material_id"],
-                "material_title": item["material_title"],
-                "chunk_id": item["chunk_id"],
-                "chunk_index": item["chunk_index"],
-                "page_no": item.get("page_no"),
-                "content": item["content"],
-                "similarity_score": item["similarity_score"],
-            }
-        )
-
-    return citations
+    return list(search_results)
 
 def _convert_history_to_messages(
     history: list[dict[str, str]],
@@ -124,8 +91,8 @@ def answer_course_question(
     if top_k is None:
         top_k = int(os.getenv("RAG_TOP_K", "5"))
 
-    search_results = semantic_search(
-        db=db,
+    search_results = retrieve_course_chunks(
+        db,
         user_id=user_id,
         course_id=course_id,
         query=message,

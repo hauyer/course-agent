@@ -71,7 +71,7 @@
   padding: 24px;
 }
 .message {
-  max-width: 800px;
+  width: min(100%, 920px);
   margin: 0 auto 18px;
   display: grid;
   grid-template-columns: 30px 1fr;
@@ -86,10 +86,19 @@
   display: grid;
   place-items: center;
   font-size: 10px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.message-role img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .message.user .message-role {
   background: #2f342d;
   color: #fff;
+  grid-column: 2;
+  grid-row: 1;
 }
 .message > div:last-child {
   background: #f5f6f3;
@@ -97,8 +106,23 @@
   padding: 12px 15px;
 }
 .message.user > div:last-child {
-  background: #fff;
-  border: 1px solid var(--line);
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  width: fit-content;
+  max-width: min(72%, 680px);
+  background: #eef1eb;
+  border: 1px solid #dde3d9;
+  border-radius: 16px 4px 16px 16px;
+  padding: 10px 14px;
+}
+.message.user {
+  grid-template-columns: minmax(0, 1fr) 30px;
+}
+.message.assistant > div:last-child {
+  background: transparent;
+  padding: 2px 0 14px;
+  border-radius: 0;
 }
 .message p {
   white-space: pre-wrap;
@@ -116,23 +140,60 @@
   color: var(--moss);
   cursor: pointer;
 }
-.citation {
-  background: #fff;
-  border-left: 2px solid var(--ochre);
-  padding: 8px;
-  margin-top: 7px;
+.citation-references {
+  margin-top: 18px !important;
+  padding: 12px 0 0 !important;
 }
-.citation b,
-.citation span {
+.citation-groups {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.citation-group {
+  border: 1px solid var(--line);
+  background: #fafbf8;
+  border-radius: 10px;
+  padding: 10px;
+}
+.citation-group > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.citation-group > header span {
+  color: var(--moss-dark);
+  background: #e8ede5;
+  border-radius: 99px;
+  padding: 3px 7px;
   font-size: 9px;
 }
-.citation span {
+.citation-group > header b {
+  font-size: 10px;
+}
+.citation {
+  background: #fff;
+  border: 0;
+  border-left: 2px solid var(--ochre);
+  padding: 7px 9px !important;
+  margin-top: 6px !important;
+}
+.citation summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.citation summary b,
+.citation summary span {
+  font-size: 9px;
+}
+.citation summary span {
   color: var(--muted);
-  margin-left: 8px;
 }
 .citation p {
   font-size: 10px;
-  margin-top: 5px;
+  margin-top: 8px;
+  color: #4f584c;
 }
 .chat-empty {
   height: 100%;

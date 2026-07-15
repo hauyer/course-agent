@@ -58,6 +58,12 @@ class ChatMessage(Base):
         nullable=True,
     )
 
+    # Agent 执行过程与资料引用分开持久化。
+    agent_trace = Column(
+        JSON,
+        nullable=True,
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -8,9 +8,12 @@ load_dotenv()
 
 def _get_user_id(config: RunnableConfig) -> int:
     try:
-        return int(config.get("configurable", {}).get("user_id", 1))
+        user_id = int((config or {}).get("configurable", {}).get("user_id"))
     except (ValueError, TypeError):
-        return 1
+        raise ValueError("无法确定当前用户")
+    if user_id < 1:
+        raise ValueError("无法确定当前用户")
+    return user_id
 
 
 def _get_course_id(course_id: int, config: RunnableConfig) -> int:

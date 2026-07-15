@@ -32,6 +32,51 @@ function CourseSelect({ courses, value, onChange }: { courses: Entity[]; value?:
   </select>;
 }
 
+function UserAvatar({ user }: { user: Entity | null }) {
+  if (user?.avatar_data) {
+    return <img src={String(user.avatar_data)} alt="用户头像" />;
+  }
+  return <span>{String(user?.username || "你").slice(0, 1).toUpperCase()}</span>;
+}
+
+function CitationReferences({ items }: { items: Entity[] }) {
+  if (!items.length) return null;
+  const groups = items.reduce<Record<string, Entity[]>>((result, item) => {
+    const key = `${item.course_id || 0}:${item.material_id || 0}`;
+    (result[key] ||= []).push(item);
+    return result;
+  }, {});
+  return (
+    <details className="citation-references">
+      <summary>参考资料 · {items.length} 条真实检索片段</summary>
+      <div className="citation-groups">
+        {Object.entries(groups).map(([key, citations]) => (
+          <section className="citation-group" key={key}>
+            <header>
+              <span>{citations[0].course_name}</span>
+              <b>{citations[0].material_title}</b>
+            </header>
+            {citations.map((citation) => (
+              <details className="citation" key={citation.chunk_id}>
+                <summary>
+                  <b>[{citation.citation_id || `C${citation.index}`}]</b>
+                  <span>
+                    {citation.page_no !== null && citation.page_no !== undefined
+                      ? `第 ${citation.page_no} 页 · `
+                      : ""}
+                    片段 {citation.chunk_index} · 相关度 {Math.round(Number(citation.similarity_score || 0) * 100)}%
+                  </span>
+                </summary>
+                <p>{String(citation.content || "")}</p>
+              </details>
+            ))}
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function AgentActivity({
   items,
   compact = false,
@@ -85,6 +130,13 @@ function AgentActivity({
 }
 
 export default function ChatPage({ notify }: { notify: (s: string) => void }) {
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("current_user") || "null");
+    } catch {
+      return null;
+    }
+  })();
   const courses = useData(() => api.courses(), []),
     [cid, setCid] = useState<number>(0),
     sessions = useData(
@@ -118,10 +170,13 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
   const hydrateMessages = (rows: Entity[]) =>
     rows.map((message) => {
       const stored = Array.isArray(message.citations) ? message.citations : [];
+      const legacyTrace = stored.filter((item: Entity) => item.kind === "agent_trace");
       return {
         ...message,
         citations: stored.filter((item: Entity) => item.kind !== "agent_trace"),
-        activities: stored.filter((item: Entity) => item.kind === "agent_trace"),
+        activities: Array.isArray(message.agent_trace)
+          ? message.agent_trace
+          : legacyTrace,
       };
     });
   useEffect(() => {
@@ -323,7 +378,7 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
             messages.map((m, i) => (
               <div className={`message ${m.role}`} key={m.id || i}>
                 <div className="message-role">
-                  {m.role === "user" ? "你" : <Sparkles size={15} />}
+                  {m.role === "user" ? <UserAvatar user={currentUser} /> : <Sparkles size={15} />}
                 </div>
                 <div>
                   {m.activities?.length > 0 && (
@@ -339,23 +394,7 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
                   ) : (
                     <p>{m.content}</p>
                   )}
-                  {m.citations?.length > 0 && (
-                    <details>
-                      <summary>{m.citations.length} 条资料依据</summary>
-                      {m.citations.map((c: Entity) => (
-                        <div className="citation" key={c.chunk_id}>
-                          <b>
-                            [{c.index}] {c.material_title}
-                          </b>
-                          <span>
-                            {c.page_no ? `第 ${c.page_no} 页 · ` : ""}相关度{" "}
-                            {Math.round(c.similarity_score * 100)}%
-                          </span>
-                          <p>{c.content}</p>
-                        </div>
-                      ))}
-                    </details>
-                  )}
+                  <CitationReferences items={m.citations || []} />
                 </div>
               </div>
             ))

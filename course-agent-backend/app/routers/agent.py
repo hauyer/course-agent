@@ -36,6 +36,16 @@ from app.services.llm_config_service import (
     reset_active_llm_runtime,
     set_active_llm_runtime,
 )
+from app.agent.citations import (
+    CitationCollector,
+    activate_citation_collector,
+    reset_citation_collector,
+)
+from app.services.citation_service import (
+    build_agent_citation_context,
+    retrieve_course_chunks,
+    sanitize_answer_citation_markers,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -117,6 +127,7 @@ async def _agent_events(
     course_id: int,
     top_k: int,
     history: list[dict],
+    citation_context: str,
 ) -> AsyncIterator[dict]:
     interface = get_agent_interface()
     runtime_token = set_active_llm_runtime(load_user_llm_runtime(user_id))
@@ -130,6 +141,7 @@ async def _agent_events(
             course_id=str(course_id),
             top_k=top_k,
             history=history,
+            citation_context=citation_context,
         ):
             yield event
     finally:
@@ -156,6 +168,28 @@ _NODE_LABELS = {
 
 def _history_payload(messages) -> list[dict]:
     return [{"role": item.role, "content": item.content} for item in messages]
+
+
+def _request_citation_context(
+    db: Session,
+    *,
+    user_id: int,
+    course_id: int,
+    message: str,
+    top_k: int,
+) -> str:
+    try:
+        citations = retrieve_course_chunks(
+            db,
+            user_id=user_id,
+            course_id=course_id,
+            query=message,
+            top_k=top_k,
+        )
+    except Exception as exc:
+        logger.warning("课程引用检索不可用: %s", type(exc).__name__)
+        return ""
+    return build_agent_citation_context(citations)
 
 
 def _record_trace(trace: list[dict], event: dict) -> None:
@@ -276,43 +310,62 @@ async def agent_chat(
     metrics = _new_metrics()
 
     try:
-        async with _session_lock(session.id):
-            history = _history_payload(
-                get_recent_messages(db, session_id=session.id, limit=24)
-            )
-            user_message = save_user_message(
-                db=db, session=session, content=chat_in.message
-            )
-            answer = ""
-            fallback_by_run: dict[str, str] = {}
-            trace: list[dict] = []
-            async for event in _agent_events(
-                message=chat_in.message,
-                user_id=current_user.id,
-                session_id=session.id,
-                course_id=chat_in.course_id,
-                top_k=chat_in.top_k,
-                history=history,
-            ):
-                _record_trace(trace, event)
-                _record_metrics(metrics, event)
-                if event.get("type") == "token":
-                    run_id = str(event.get("run_id", ""))
-                    fallback_by_run[run_id] = fallback_by_run.get(run_id, "") + str(event.get("content", ""))
-                elif event.get("type") == "model_end" and event.get("final"):
-                    candidate = str(event.get("content", "")).strip()
-                    if candidate:
-                        answer = candidate
+        collector = CitationCollector()
+        collector_token = activate_citation_collector(collector)
+        try:
+            async with _session_lock(session.id):
+                history = _history_payload(
+                    get_recent_messages(db, session_id=session.id, limit=24)
+                )
+                citation_context = _request_citation_context(
+                    db,
+                    user_id=current_user.id,
+                    course_id=chat_in.course_id,
+                    message=chat_in.message,
+                    top_k=chat_in.top_k,
+                )
+                user_message = save_user_message(
+                    db=db, session=session, content=chat_in.message
+                )
+                answer = ""
+                fallback_by_run: dict[str, str] = {}
+                trace: list[dict] = []
+                async for event in _agent_events(
+                    message=chat_in.message,
+                    user_id=current_user.id,
+                    session_id=session.id,
+                    course_id=chat_in.course_id,
+                    top_k=chat_in.top_k,
+                    history=history,
+                    citation_context=citation_context,
+                ):
+                    _record_trace(trace, event)
+                    _record_metrics(metrics, event)
+                    if event.get("type") == "token":
+                        run_id = str(event.get("run_id", ""))
+                        fallback_by_run[run_id] = fallback_by_run.get(run_id, "") + str(event.get("content", ""))
+                    elif event.get("type") == "model_end" and event.get("final"):
+                        candidate = str(event.get("content", "")).strip()
+                        if candidate:
+                            answer = candidate
 
-            if not answer and fallback_by_run:
-                answer = next((v.strip() for v in reversed(fallback_by_run.values()) if v.strip()), "")
-            if not answer:
-                raise RuntimeError("AgentInterface 没有返回回答内容")
+                if not answer and fallback_by_run:
+                    answer = next((v.strip() for v in reversed(fallback_by_run.values()) if v.strip()), "")
+                if not answer:
+                    raise RuntimeError("AgentInterface 没有返回回答内容")
 
-            _finish_trace(trace)
-            assistant_message = save_assistant_message(
-                db=db, session=session, content=answer, citations=trace
-            )
+                citations = collector.snapshot()
+                answer = sanitize_answer_citation_markers(answer, citations)
+                _finish_trace(trace)
+                assistant_message = save_assistant_message(
+                    db=db,
+                    session=session,
+                    content=answer,
+                    citations=citations,
+                    agent_trace=trace,
+                )
+        finally:
+            reset_citation_collector(collector_token)
 
         _write_agent_audit(
             trace_id=trace_id,
@@ -330,7 +383,7 @@ async def agent_chat(
             "user_message_id": user_message.id,
             "assistant_message_id": assistant_message.id,
             "answer": answer,
-            "citations": [],
+            "citations": citations,
             "agent_trace": trace,
         }
 
@@ -380,10 +433,19 @@ async def agent_chat_stream(
         answer = ""
         fallback_by_run: dict[str, str] = {}
         trace: list[dict] = []
+        collector = CitationCollector()
+        collector_token = activate_citation_collector(collector)
         try:
             async with _session_lock(session.id):
                 history = _history_payload(
                     get_recent_messages(db, session_id=session.id, limit=24)
+                )
+                citation_context = _request_citation_context(
+                    db,
+                    user_id=current_user.id,
+                    course_id=chat_in.course_id,
+                    message=chat_in.message,
+                    top_k=chat_in.top_k,
                 )
                 user_message = save_user_message(
                     db=db, session=session, content=chat_in.message
@@ -399,6 +461,7 @@ async def agent_chat_stream(
                     course_id=chat_in.course_id,
                     top_k=chat_in.top_k,
                     history=history,
+                    citation_context=citation_context,
                 ):
                     _record_trace(trace, event)
                     _record_metrics(metrics, event)
@@ -416,10 +479,16 @@ async def agent_chat_stream(
                 if not answer:
                     raise RuntimeError("AgentInterface 没有返回回答内容")
 
+                citations = collector.snapshot()
+                answer = sanitize_answer_citation_markers(answer, citations)
                 _finish_trace(trace)
 
                 assistant_message = save_assistant_message(
-                    db=db, session=session, content=answer, citations=trace
+                    db=db,
+                    session=session,
+                    content=answer,
+                    citations=citations,
+                    agent_trace=trace,
                 )
             _write_agent_audit(trace_id=trace_id, user_id=current_user.id, session_id=session.id, course_id=chat_in.course_id, started=started, metrics=metrics, status_code=200)
             yield "data: " + json.dumps(
@@ -430,7 +499,7 @@ async def agent_chat_stream(
                     "user_message_id": user_message.id,
                     "assistant_message_id": assistant_message.id,
                     "answer": answer,
-                    "citations": [],
+                    "citations": citations,
                     "agent_trace": trace,
                 },
                 ensure_ascii=False,
@@ -447,6 +516,8 @@ async def agent_chat_stream(
                 },
                 ensure_ascii=False,
             ) + "\n\n"
+        finally:
+            reset_citation_collector(collector_token)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
