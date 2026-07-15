@@ -155,6 +155,41 @@ button {
   place-items: center;
   font-family: Georgia, serif;
 }
+
+.avatar img,
+.settings-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.settings-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: var(--ink);
+  background: #e9eee7;
+  border: 1px solid var(--line);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.avatar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.avatar-actions input[type="file"] {
+  flex: 1 1 260px;
+}
 .rail-user b,
 .rail-user small {
   display: block;

@@ -254,7 +254,11 @@ function App() {
           </nav>
           <div className="rail-user">
             <div className="avatar">
-              {user?.username?.slice(0, 1)?.toUpperCase() || "学"}
+              {user?.avatar_data ? (
+                <img src={String(user.avatar_data)} alt="用户头像" />
+              ) : (
+                user?.username?.slice(0, 1)?.toUpperCase() || "学"
+              )}
             </div>
             <div>
               <b>{user?.username || "学习者"}</b>
@@ -303,11 +307,17 @@ function App() {
         )}
         {settingsOpen && (
           <UserSettings
+            user={user}
             fontSize={fontSize}
             onFontSize={updateFontSize}
             onClose={() => setSettingsOpen(false)}
             onLogout={logout}
             onMaterialsCleared={() => setDataVersion((value) => value + 1)}
+            onUserUpdated={(nextUser) => {
+              setUser(nextUser);
+              localStorage.setItem("current_user", JSON.stringify(nextUser));
+              setDataVersion((value) => value + 1);
+            }}
             notify={notify}
           />
         )}
@@ -518,18 +528,22 @@ function Modal({
 }
 
 function UserSettings({
+  user,
   fontSize,
   onFontSize,
   onClose,
   onLogout,
   onMaterialsCleared,
+  onUserUpdated,
   notify,
 }: {
+  user: Entity | null;
   fontSize: string;
   onFontSize: (value: string) => void;
   onClose: () => void;
   onLogout: () => void;
   onMaterialsCleared: () => void;
+  onUserUpdated: (user: Entity) => void;
   notify: (message: string) => void;
 }) {
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -538,9 +552,41 @@ function UserSettings({
   const [modelBusy, setModelBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState<"export" | "import" | "">("");
   const [backupProgress, setBackupProgress] = useState(0);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [verifiedPassword, setVerifiedPassword] = useState("");
   const [provider, setProvider] = useState("openai");
   const llmConfig = useData<Entity>(() => api.llmConfig(), []);
+
+  const updateAvatar = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const file = new FormData(form).get("avatar");
+    if (!(file instanceof File) || !file.size) return;
+    setAvatarBusy(true);
+    try {
+      const nextUser: any = await api.updateAvatar(file);
+      onUserUpdated(nextUser);
+      form.reset();
+      notify("头像已更新");
+    } catch (error) {
+      notify(errorText(error));
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const deleteAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      const nextUser: any = await api.deleteAvatar();
+      onUserUpdated(nextUser);
+      notify("已恢复默认头像");
+    } catch (error) {
+      notify(errorText(error));
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (llmConfig.data?.provider) setProvider(llmConfig.data.provider);
@@ -688,6 +734,32 @@ function UserSettings({
   return (
     <Modal title="账户与界面设置" onClose={onClose} wide>
       <div className="user-settings">
+        <section className="setting-section profile-setting">
+          <div className="setting-heading">
+            <div className="settings-avatar">
+              {user?.avatar_data ? (
+                <img src={String(user.avatar_data)} alt="当前头像" />
+              ) : (
+                user?.username?.slice(0, 1)?.toUpperCase() || "学"
+              )}
+            </div>
+            <div>
+              <h3>个人头像</h3>
+              <p>头像会与课程问答中的用户消息保持一致，图片将压缩后保存到你的账户。</p>
+            </div>
+          </div>
+          <form className="avatar-actions" onSubmit={updateAvatar}>
+            <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp" required />
+            <button className="btn subtle" disabled={avatarBusy}>
+              {avatarBusy ? "正在处理…" : "上传头像"}
+            </button>
+            {user?.avatar_data && (
+              <button className="text-btn" type="button" disabled={avatarBusy} onClick={deleteAvatar}>
+                恢复默认
+              </button>
+            )}
+          </form>
+        </section>
         <section className="setting-section">
           <div className="setting-heading">
             <Settings2 size={18} />

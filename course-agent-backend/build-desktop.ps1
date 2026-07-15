@@ -21,6 +21,9 @@ try {
         --hidden-import sqlalchemy.dialects.mysql.pymysql `
         --collect-submodules langgraph `
         --collect-submodules langchain_deepseek `
+        --collect-all alembic `
+        --add-data "alembic;alembic" `
+        --add-data "alembic.ini;." `
         desktop_backend.py
     if ($LASTEXITCODE -ne 0) {
         throw "Backend executable build failed with exit code $LASTEXITCODE"

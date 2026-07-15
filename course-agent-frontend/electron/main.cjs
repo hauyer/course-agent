@@ -114,8 +114,9 @@ async function startBackend() {
 
     if (!fs.existsSync(executable)) throw new Error(`找不到后端运行程序：${executable}`);
 
+    // 已保存的 Windows 加密配置仍然兼容；若没有，则由后端从
+    // userData/.env 或进程环境变量读取 DATABASE_URL，前端始终直接进入登录页。
     const runtime = app.isPackaged ? backendEnvironment() : null;
-    if (app.isPackaged && !runtime) throw new Error("请先完成 MySQL 首次配置");
 
     const logPath = path.join(dataDir, "backend.log");
     const log = fs.openSync(logPath, "a");
@@ -223,7 +224,18 @@ function stopServices() {
   stopBackend();
 }
 
+function ensureLocalConfigTemplate() {
+  if (!app.isPackaged) return;
+  const source = path.join(process.resourcesPath, "config", ".env.example");
+  const target = path.join(app.getPath("userData"), ".env.example");
+  if (!fs.existsSync(target) && fs.existsSync(source)) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+  }
+}
+
 app.whenReady().then(async () => {
+  ensureLocalConfigTemplate();
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -242,7 +254,7 @@ app.whenReady().then(async () => {
   });
 
   const port = await startServer();
-  if (!app.isPackaged || readStoredConfig()) startBackend().catch(() => undefined);
+  startBackend().catch(() => undefined);
   await win.loadURL(`http://127.0.0.1:${port}`);
 });
 

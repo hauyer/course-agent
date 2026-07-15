@@ -258,6 +258,12 @@ export const api = {
   register: (body: Entity) =>
     request("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   me: () => request("/auth/me"),
+  updateAvatar: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request("/auth/avatar", { method: "PUT", body });
+  },
+  deleteAvatar: () => request("/auth/avatar", { method: "DELETE" }),
   changePassword: (body: Entity) =>
     request("/auth/password", {
       method: "PUT",

@@ -23,6 +23,10 @@ jobs:
 
   backend:
     runs-on: windows-latest
+    env:
+      DATABASE_URL: sqlite:///./ci-tests.db
+      SECRET_KEY: ci-only-secret-not-for-production
+      CHROMA_PATH: ./ci-chroma
     defaults:
       run:
         working-directory: course-agent-backend

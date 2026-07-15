@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.database import Base, SessionLocal, engine, get_db
+from app.database import SessionLocal, get_db
 from app.models import (
     User,
     Course,
@@ -49,16 +49,17 @@ from app.routers import (
 )
 from app.services.audit_service import write_audit_log
 from app.services.knowledge_graph_service import recover_interrupted_knowledge_graph_jobs
+from app.services.migration_service import run_database_migrations
 
 
-#启动时自动创建数据库表
-Base.metadata.create_all(bind=engine)
+# 使用版本化、只增不删的迁移升级空数据库或既有 1.0 数据库。
+run_database_migrations()
 
 # 创建FastAPI应用实例，并设置应用的标题、描述和版本信息
 app = FastAPI(
     title="课程学习助手Agent平台后端",
     description="负责用户认证、课程管理、资料管理、Agent 问答、学习计划和待办任务等功能",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 

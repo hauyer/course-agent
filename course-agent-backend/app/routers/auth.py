@@ -1,6 +1,10 @@
 #作用: 处理用户认证和授权相关的路由，包括注册、登录和获取当前用户信息。
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import base64
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from app.database import get_db
@@ -134,6 +138,55 @@ def get_me(current_user: User = Depends(get_current_user)):
     获取当前登录用户信息。
     """
 
+    return current_user
+
+
+@router.put("/avatar", response_model=UserResponse)
+async def update_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """保存当前用户头像，并统一压缩为小尺寸 WebP。"""
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=415, detail="仅支持 JPEG、PNG 或 WebP 图片")
+
+    raw = await file.read(4 * 1024 * 1024 + 1)
+    await file.close()
+    if not raw:
+        raise HTTPException(status_code=400, detail="头像文件不能为空")
+    if len(raw) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="头像文件不能超过 4 MB")
+
+    try:
+        with Image.open(BytesIO(raw)) as probe:
+            probe.verify()
+        with Image.open(BytesIO(raw)) as source:
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=84, method=4)
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise HTTPException(status_code=400, detail="头像图片无法解析或尺寸异常") from exc
+
+    current_user.avatar_data = (
+        "data:image/webp;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+    )
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.delete("/avatar", response_model=UserResponse)
+def delete_avatar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.avatar_data = None
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

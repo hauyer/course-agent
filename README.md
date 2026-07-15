@@ -10,11 +10,13 @@
 - **课程管理**：维护课程名称、教师、学期和课程说明，并支持搜索与筛选。
 - **资料库**：上传并解析 PDF、Word、PowerPoint、Markdown 和文本资料，后台完成分块与向量化。
 - **知识检索**：使用 SentenceTransformer 与 ChromaDB cosine 空间，在当前用户的指定课程内检索原文片段，展示页码、真实余弦相似度和资料来源。
+- **可验证资料引用**：Agent 回答下方按课程和资料展示真实检索片段、页码、片段序号与相似度，历史会话仍可恢复引用。
 - **任务管理**：按状态和优先级管理学习任务，任务完成后自动计入学习时长。
-- **学习计划**：将阶段目标拆分为每日任务，也可以让 Agent 根据已有课程生成计划。
+- **学习计划**：保留单课程计划，并支持多课程容量预览、超载提示、确认创建和安全重新生成。
 - **学习记录**：记录实际投入、学习内容与复盘想法，形成可回顾的学习轨迹。
 - **笔记系统**：创建、阅读和编辑 Markdown 笔记，以排版后的阅读视图呈现，并支持 Notion、Obsidian 同步。
 - **课程问答**：围绕指定课程资料进行多轮对话，保留会话上下文，并以可折叠过程展示 Agent 与工具执行状态。
+- **课程知识图谱**：按后台任务从真实资料片段提取节点、关系与证据，支持版本保护、筛选和来源查看。
 - **运行审计**：查看 Agent 请求的 trace ID、耗时、模型调用、工具错误和 token 使用情况。
 - **数据迁移**：通过应用内备份包导出和导入个人课程数据。
 
@@ -124,7 +126,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
 FLUSH PRIVILEGES;
 ```
 
-数据库默认连接地址为 `127.0.0.1:3306`。首次运行发行版时，按界面填写数据库名、用户名和密码；验证成功后程序会启动后端并进入登录页。数据库密码使用 Electron `safeStorage` 与当前 Windows 用户凭据加密，不会写入安装包或上传到 GitHub。
+数据库默认连接地址为 `127.0.0.1:3306`。桌面程序不再显示数据库配置页，启动后直接进入登录界面。请在当前 Windows 用户的 `%APPDATA%\课程学习助手\.env` 中保存本机配置（该文件不会进入安装包）：
+
+```env
+DATABASE_URL=mysql+pymysql://course_agent:你的密码@127.0.0.1:3306/course_agent?charset=utf8mb4
+SECRET_KEY=请替换为随机生成的长字符串
+```
+
+密码包含 `@`、`:`、`/` 等 URL 特殊字符时需要先进行 URL 编码。开发版继续读取 `course-agent-backend/.env`。旧版本已经通过首次配置页保存的 Windows 加密配置仍然兼容。
 
 ### 2. 创建应用账号
 
@@ -170,6 +179,16 @@ SECRET_KEY=请替换为随机生成的长字符串
 
 后端健康检查：<http://127.0.0.1:8000/health>
 
+启动时会自动执行 Alembic 增量迁移。手动检查迁移链：
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic current
+.\.venv\Scripts\python.exe -m alembic history
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+1.0 数据库升级只新增 1.1 字段和表，不删除课程、资料、任务、计划或聊天记录。生产数据升级前仍应先使用 `mysqldump` 备份，详见 [1.1 数据库迁移](docs/database-migration-v1.1.md)。
+
 ### 2. 启动前端
 
 另开一个 PowerShell 窗口：
@@ -194,8 +213,8 @@ npm run dist
 
 ```text
 course-agent-frontend/release/
-├─ 课程学习助手-安装版-1.0.0-x64.exe
-└─ 课程学习助手-便携版-1.0.0-x64.exe
+├─ 课程学习助手-安装版-1.1.0-x64.exe
+└─ 课程学习助手-便携版-1.1.0-x64.exe
 ```
 
 发行包体积较大，应上传到 GitHub Releases，不要直接提交进 Git 仓库。
@@ -219,6 +238,7 @@ course-agent-frontend/release/
 # 后端语法检查
 cd course-agent-backend
 .\.venv\Scripts\python.exe -m compileall -q app
+.\.venv\Scripts\python.exe -m pytest -q
 
 # 前端类型检查与生产构建
 cd ..\course-agent-frontend

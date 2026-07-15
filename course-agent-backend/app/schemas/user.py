@@ -46,6 +46,7 @@ class UserResponse(BaseModel):
     username: str
     email: Optional[str] = None
     role: str
+    avatar_data: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

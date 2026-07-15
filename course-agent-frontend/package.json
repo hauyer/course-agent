@@ -1,6 +1,6 @@
 {
   "name": "course-study-desk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "课程学习助手桌面端",
   "main": "electron/main.cjs",
@@ -51,6 +51,14 @@
       {
         "from": "../course-agent-backend/dist/course-agent-backend.exe",
         "to": "backend/course-agent-backend.exe"
+      },
+      {
+        "from": "../course-agent-backend/.env.example",
+        "to": "config/.env.example"
+      },
+      {
+        "from": "../README.md",
+        "to": "docs/README.md"
       }
     ],
     "win": {
