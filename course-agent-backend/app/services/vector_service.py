@@ -15,6 +15,8 @@ from app.models.material_chunk import MaterialChunk
 
 
 COSINE_SPACE = "cosine"
+DEFAULT_COSINE_COLLECTION = "course_material_chunks_v1_1_cosine"
+LEGACY_COLLECTION_NAME = "course_material_chunks"
 
 
 class VectorServiceError(RuntimeError):
