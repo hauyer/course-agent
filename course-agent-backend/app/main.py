@@ -50,6 +50,7 @@ from app.routers import (
 from app.services.audit_service import write_audit_log
 from app.services.knowledge_graph_service import recover_interrupted_knowledge_graph_jobs
 from app.services.migration_service import run_database_migrations
+from app.utils.json_safety import json_safe
 
 
 # 使用版本化、只增不删的迁移升级空数据库或既有 1.0 数据库。
@@ -61,20 +62,6 @@ app = FastAPI(
     description="负责用户认证、课程管理、资料管理、Agent 问答、学习计划和待办任务等功能",
     version="1.1.0",
 )
-
-
-def _json_safe(value):
-    """Keep validation diagnostics useful without leaking or serializing raw bodies."""
-
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, bytes):
-        return f"<binary payload: {len(value)} bytes>"
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    return str(value)
 
 
 @app.middleware("http")
@@ -105,7 +92,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={
             "detail": "请求参数不符合要求",
-            "errors": _json_safe(exc.errors()),
+            "errors": json_safe(exc.errors()),
             "trace_id": getattr(request.state, "trace_id", None),
         },
     )

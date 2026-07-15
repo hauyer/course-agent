@@ -13,7 +13,9 @@
 .job-progress { height: 6px; overflow: hidden; border-radius: 99px; background: #e4e9e3; }
 .job-progress i { display: block; height: 100%; border-radius: inherit; background: #6d826f; transition: width .25s ease; }
 .graph-job-state > strong { color: #536255; font-size: 13px; }
-.graph-job-state > p { grid-column: 1 / -1; margin: 0; color: #a45849; font-size: 12px; }
+.graph-job-warning { grid-column: 1 / -1; min-width: 0; color: #a45849; font-size: 12px; }
+.graph-job-warning summary { cursor: pointer; font-weight: 650; }
+.graph-job-warning p { max-height: 110px; margin: 8px 0 0; overflow: auto; line-height: 1.55; overflow-wrap: anywhere; }
 .graph-job-state.failed,.graph-job-state.partial { border-color: #e6c8bc; background: #fffaf7; }
 .graph-error,.graph-limit-note { display: flex; align-items: center; gap: 8px; margin: 0 0 13px; padding: 10px 12px; border-radius: 10px; background: #fff4ef; color: #a45445; font-size: 12px; }
 .graph-limit-note { background: #f4f0e7; color: #746346; }

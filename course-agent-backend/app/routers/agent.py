@@ -451,7 +451,12 @@ async def agent_chat_stream(
                     db=db, session=session, content=chat_in.message
                 )
                 yield "data: " + json.dumps(
-                    {"type": "persisted", "user_message_id": user_message.id},
+                    {
+                        "type": "persisted",
+                        "session_id": session.id,
+                        "course_id": chat_in.course_id,
+                        "user_message_id": user_message.id,
+                    },
                     ensure_ascii=False,
                 ) + "\n\n"
                 async for event in _agent_events(
@@ -513,6 +518,8 @@ async def agent_chat_stream(
                     "type": "error",
                     "message": f"Agent 问答执行失败（追踪号 {trace_id[:12]}）",
                     "trace_id": trace_id,
+                    "session_id": session.id,
+                    "course_id": chat_in.course_id,
                 },
                 ensure_ascii=False,
             ) + "\n\n"

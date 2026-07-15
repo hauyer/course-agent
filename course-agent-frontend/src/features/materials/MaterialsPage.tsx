@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CircleHelp, FileText, Files, Library, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { api, type Entity } from "../../api";
+import { useAsyncData as useData } from "../../shared/useAsyncData";
 import "./materials.css";
 
 type UploadJob = {
@@ -189,7 +190,6 @@ async function startUpload(courseId: number, file: File, title?: string) {
 function unwrap(data:any):Entity[]{return Array.isArray(data)?data:data?.items||[]}
 function errorText(error:unknown){return error instanceof Error?error.message:"操作失败"}
 function dateText(value?:string){return value?new Intl.DateTimeFormat("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value)):"—"}
-function useData<T>(loader:()=>Promise<T>,deps:any[]=[]){const[data,setData]=useState<T|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[tick,setTick]=useState(0);useEffect(()=>{let live=true;setLoading(true);loader().then(value=>live&&setData(value)).catch(reason=>live&&setError(errorText(reason))).finally(()=>live&&setLoading(false));return()=>{live=false}},[...deps,tick]);return{data,error,loading,reload:()=>setTick(value=>value+1)}}
 function Loading({error}:{error?:string}){return <div className="empty"><RefreshCw className="spin" size={20}/><b>{error||"正在整理数据"}</b><span>{error?"检查后端服务后刷新页面":"请稍候"}</span></div>}
 function Empty({title,text}:{title:string;text:string}){return <div className="empty"><Library size={24}/><b>{title}</b><span>{text}</span></div>}
 function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}){return createPortal(<div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${wide?"wide":""}`} onMouseDown={event=>event.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose}><X size={18}/></button></div>{children}</div></div>,document.body)}

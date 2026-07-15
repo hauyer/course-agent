@@ -65,6 +65,8 @@ def serialize_integration_config(config: IntegrationConfig | None) -> dict:
     if config is None:
         return {
             "notion_configured": False,
+            "notion_invalid": False,
+            "notion_error_message": None,
             "notion_api_key_hint": None,
             "notion_parent_page_id": None,
             "notion_api_version": "2026-03-11",
@@ -73,9 +75,18 @@ def serialize_integration_config(config: IntegrationConfig | None) -> dict:
             "obsidian_vault_path": None,
             "obsidian_base_folder": "课程学习助手",
         }
-    token = decrypt_secret(config.notion_api_key_encrypted)
+    token = None
+    notion_invalid = False
+    notion_error_message = None
+    try:
+        token = decrypt_secret(config.notion_api_key_encrypted)
+    except RuntimeError:
+        notion_invalid = True
+        notion_error_message = "原 Notion Token 无法解密，请重新输入 Token 后保存"
     return {
         "notion_configured": bool(token and config.notion_parent_page_id),
+        "notion_invalid": notion_invalid,
+        "notion_error_message": notion_error_message,
         "notion_api_key_hint": f"••••{token[-4:]}" if token else None,
         "notion_parent_page_id": config.notion_parent_page_id,
         "notion_api_version": config.notion_api_version,

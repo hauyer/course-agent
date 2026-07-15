@@ -269,6 +269,7 @@ async def test_stream_and_non_stream_return_and_persist_identical_citations(monk
     async for part in stream_response.body_iterator:
         raw += part.decode() if isinstance(part, bytes) else part
     result = None
+    persisted = None
     for frame in raw.split("\n\n"):
         if not frame.startswith("data: "):
             continue
@@ -276,10 +277,14 @@ async def test_stream_and_non_stream_return_and_persist_identical_citations(monk
         if body == "[DONE]":
             continue
         event = json.loads(body)
+        if event.get("type") == "persisted":
+            persisted = event
         if event.get("type") == "result":
             result = event
 
     assert result is not None
+    assert persisted["session_id"] == 88
+    assert persisted["course_id"] == 3
     assert direct["citations"] == result["citations"]
     assert direct["citations"][0]["citation_id"] == "C1"
     assert "[C99]" not in direct["answer"]

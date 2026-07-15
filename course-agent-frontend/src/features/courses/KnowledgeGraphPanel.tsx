@@ -333,7 +333,12 @@ export default function KnowledgeGraphPanel({
                   取消
                 </button>
               )}
-              {currentJob.error_message && <p>{currentJob.error_message}</p>}
+              {currentJob.error_message && (
+                <details className="graph-job-warning">
+                  <summary>部分资料未能处理，已保留其他批次的有效结果</summary>
+                  <p>{currentJob.error_message}</p>
+                </details>
+              )}
             </section>
           )}
 

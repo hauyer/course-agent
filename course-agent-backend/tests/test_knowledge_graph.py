@@ -368,6 +368,116 @@ def test_structured_llm_output_retries_once(monkeypatch, graph_db):
     assert result.nodes[0].name == "进程"
 
 
+def test_structured_scores_accept_common_model_labels_and_percentages():
+    result = KnowledgeExtractionBatch.model_validate(
+        {
+            "nodes": [
+                {
+                    "name": "生成函数",
+                    "importance": "high",
+                    "confidence": "80%",
+                    "chunk_ids": [1],
+                },
+                {
+                    "name": "递推关系",
+                    "importance": "medium",
+                    "confidence": 75,
+                    "chunk_ids": [2],
+                },
+            ],
+            "edges": [
+                {
+                    "source": "递推关系",
+                    "target": "生成函数",
+                    "relation_type": "applies_to",
+                    "weight": "low",
+                    "confidence": "0.9",
+                    "chunk_ids": [2],
+                }
+            ],
+        }
+    )
+
+    assert result.nodes[0].importance == pytest.approx(0.85)
+    assert result.nodes[0].confidence == pytest.approx(0.8)
+    assert result.nodes[1].importance == pytest.approx(0.6)
+    assert result.nodes[1].confidence == pytest.approx(0.75)
+    assert result.edges[0].weight == pytest.approx(0.35)
+    assert result.edges[0].confidence == pytest.approx(0.9)
+
+
+def test_first_partial_graph_keeps_verified_batches_viewable(graph_db, monkeypatch):
+    db, factory, alice, _, course, _, _, _ = graph_db
+    add_llm_config(db, alice.id)
+    job = create_knowledge_graph_job(db, user_id=alice.id, course_id=course.id)
+    monkeypatch.setattr(
+        knowledge_graph_service,
+        "load_user_llm_runtime",
+        lambda _user_id: {"provider": "fake", "model_name": "fake", "api_key": "hidden"},
+    )
+    monkeypatch.setattr(
+        knowledge_graph_service,
+        "_batch_rows",
+        lambda rows: ([row] for row in rows),
+    )
+    calls = 0
+
+    def partly_broken_extractor(_runtime, rows):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise ValueError("invalid json")
+        chunk_id = rows[0][0].id
+        return KnowledgeExtractionBatch.model_validate(
+            {"nodes": [{"name": "进程", "chunk_ids": [chunk_id]}], "edges": []}
+        )
+
+    process_knowledge_graph_job(
+        job_id=job.id,
+        user_id=alice.id,
+        course_id=course.id,
+        session_factory=factory,
+        extractor=partly_broken_extractor,
+    )
+
+    db.expire_all()
+    finished = db.query(KnowledgeGraphJob).filter_by(id=job.id).one()
+    assert finished.status == "partial"
+    assert finished.is_active is True
+    graph = get_active_knowledge_graph(db, user_id=alice.id, course_id=course.id)
+    assert graph is not None
+    assert graph["job_id"] == job.id
+    assert [node["name"] for node in graph["nodes"]] == ["进程"]
+
+
+def test_inactive_legacy_partial_graph_with_nodes_is_still_viewable(graph_db, monkeypatch):
+    db, factory, alice, _, course, _, _, _ = graph_db
+    add_llm_config(db, alice.id)
+    job = create_knowledge_graph_job(db, user_id=alice.id, course_id=course.id)
+    monkeypatch.setattr(
+        knowledge_graph_service,
+        "load_user_llm_runtime",
+        lambda _user_id: {"provider": "fake", "model_name": "fake", "api_key": "hidden"},
+    )
+    process_knowledge_graph_job(
+        job_id=job.id,
+        user_id=alice.id,
+        course_id=course.id,
+        session_factory=factory,
+        extractor=valid_extractor,
+    )
+    finished = db.query(KnowledgeGraphJob).filter_by(id=job.id).one()
+    finished.status = "partial"
+    finished.is_active = False
+    db.commit()
+
+    graph = get_active_knowledge_graph(db, user_id=alice.id, course_id=course.id)
+
+    assert graph is not None
+    assert graph["job_id"] == job.id
+    assert graph["nodes"]
+
+
 def test_large_course_is_processed_in_bounded_batches(graph_db, monkeypatch):
     db, factory, alice, _, course, _, material, _ = graph_db
     for index in range(2, 22):

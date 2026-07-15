@@ -1,14 +1,14 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Check, Library, Plus, RefreshCw, RotateCcw, Settings2, Sparkles, Trash2, X } from "lucide-react";
 import { api, type Entity, type MultiCoursePlanPreview } from "../../api";
 import MultiCoursePlanner from "./MultiCoursePlanner";
+import { useAsyncData as useData } from "../../shared/useAsyncData";
 
 const labels:Record<string,string>={draft:"草稿",active:"进行中",paused:"已暂停",completed:"已完成",pending:"待开始",in_progress:"进行中",cancelled:"已取消"};
 function unwrap(data:any):Entity[]{return Array.isArray(data)?data:data?.items||[]}
 function errorText(error:unknown){return error instanceof Error?error.message:"操作失败"}
 function dayText(value?:string){return value?new Intl.DateTimeFormat("zh-CN",{year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value)):"—"}
-function useData<T>(loader:()=>Promise<T>,deps:any[]=[]){const[data,setData]=useState<T|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[tick,setTick]=useState(0);useEffect(()=>{let live=true;setLoading(true);loader().then(value=>live&&setData(value)).catch(reason=>live&&setError(errorText(reason))).finally(()=>live&&setLoading(false));return()=>{live=false}},[...deps,tick]);return{data,error,loading,reload:()=>setTick(value=>value+1)}}
 function Empty({title,text}:{title:string;text:string}){return <div className="empty"><Library size={24}/><b>{title}</b><span>{text}</span></div>}
 function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}){return createPortal(<div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${wide?"wide":""}`} onMouseDown={event=>event.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose}><X size={18}/></button></div>{children}</div></div>,document.body)}
 function CourseSelect({courses,value,onChange,optional=false}:{courses:Entity[];value?:any;onChange:(value:string)=>void;optional?:boolean}){return <select name="course_id" defaultValue={value||""} onChange={event=>onChange(event.target.value)} required={!optional}><option value="">{optional?"不关联课程":"选择课程"}</option>{courses.map(course=><option key={course.id} value={course.id}>{course.name}</option>)}</select>}

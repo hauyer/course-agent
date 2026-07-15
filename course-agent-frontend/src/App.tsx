@@ -50,6 +50,7 @@ import {
   type SemanticSearchItem,
   type SemanticSearchResponse,
 } from "./api";
+import { useAsyncData as useData } from "./shared/useAsyncData";
 
 type Page =
   | "dashboard"
@@ -462,24 +463,6 @@ function PageView({
   );
 }
 
-function useData<T>(loader: () => Promise<T>, deps: any[] = []) {
-  const [data, setData] = useState<T | null>(null),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(true),
-    [tick, setTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    setLoading(true);
-    loader()
-      .then((x) => live && setData(x))
-      .catch((e) => live && setError(errorText(e)))
-      .finally(() => live && setLoading(false));
-    return () => {
-      live = false;
-    };
-  }, [...deps, tick]);
-  return { data, error, loading, reload: () => setTick((x) => x + 1), setData };
-}
 function Loading({ error }: { error?: string }) {
   return (
     <div className="empty">

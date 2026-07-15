@@ -201,6 +201,8 @@ class IntegrationConfigUpdate(BaseModel):
 
 class IntegrationConfigResponse(BaseModel):
     notion_configured: bool
+    notion_invalid: bool = False
+    notion_error_message: Optional[str] = None
     notion_api_key_hint: Optional[str]
     notion_parent_page_id: Optional[str]
     notion_api_version: str

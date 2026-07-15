@@ -37,6 +37,17 @@
   line-height: 1.6;
 }
 
+.integration-warning {
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid #e6c7bc;
+  border-radius: 9px;
+  background: #fff7f3;
+  color: #9b5447;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 /* Interaction polish */
 .page-transition {
   animation: page-settle 0.32s cubic-bezier(0.22, 0.8, 0.28, 1) both;

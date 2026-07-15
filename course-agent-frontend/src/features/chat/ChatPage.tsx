@@ -3,6 +3,7 @@ import { Check, MessageSquareText, Plus, RefreshCw, Sparkles, Trash2 } from "luc
 
 import { api, streamAgent, type Entity } from "../../api";
 import MarkdownContent from "../../components/MarkdownContent";
+import { useAsyncData as useData } from "../../shared/useAsyncData";
 import "./chat.css";
 
 function unwrap(data: any): Entity[] {
@@ -15,15 +16,9 @@ function dateText(value?: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
-function useData<T>(loader: () => Promise<T>, deps: any[] = []) {
-  const [data, setData] = useState<T | null>(null);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    loader().then((value) => live && setData(value)).catch(() => undefined);
-    return () => { live = false; };
-  }, [...deps, tick]);
-  return { data, reload: () => setTick((value) => value + 1) };
+function storedNumber(key: string) {
+  const value = Number(sessionStorage.getItem(key));
+  return Number.isInteger(value) && value > 0 ? value : 0;
 }
 function CourseSelect({ courses, value, onChange }: { courses: Entity[]; value?: any; onChange: (value: string) => void }) {
   return <select value={value || ""} onChange={(event) => onChange(event.target.value)} required>
@@ -140,8 +135,11 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
       return null;
     }
   })();
+  const storagePrefix = `course-chat:${currentUser?.id || "guest"}`;
+  const courseStorageKey = `${storagePrefix}:course`;
+  const sessionStorageKey = `${storagePrefix}:session`;
   const courses = useData(() => api.courses(), []),
-    [cid, setCid] = useState<number>(0),
+    [cid, setCid] = useState<number>(() => storedNumber(courseStorageKey)),
     sessions = useData(
       () => (cid ? api.sessions(cid) : Promise.resolve([])),
       [cid],
@@ -150,12 +148,15 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
     [messages, setMessages] = useState<Entity[]>([]),
     [input, setInput] = useState(""),
     [busy, setBusy] = useState(false),
+    [messageLoading, setMessageLoading] = useState(false),
+    [messageError, setMessageError] = useState(""),
     [activities, setActivities] = useState<Entity[]>([]),
     [streamText, setStreamText] = useState("");
   const keepImmediateResultForSession = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const followLatest = useRef(true);
+  const messageLoadSequence = useRef(0);
   const agentNames: Record<string, string> = {
     course_agent: "课程助手",
     course_agent_node: "课程助手",
@@ -185,13 +186,26 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
       };
     });
   useEffect(() => {
-    if (!cid && courses.data?.[0]) setCid(courses.data[0].id);
+    const available = unwrap(courses.data);
+    if (!available.length) return;
+    if (!available.some((course) => Number(course.id) === cid)) {
+      setCid(Number(available[0].id));
+    }
   }, [courses.data, cid]);
   useEffect(() => {
-    if (!sid) {
-      setMessages([]);
-      return;
+    if (cid) sessionStorage.setItem(courseStorageKey, String(cid));
+  }, [cid, courseStorageKey]);
+  useEffect(() => {
+    const available = unwrap(sessions.data);
+    if (!cid || !sessions.data || sid) return;
+    const restored = storedNumber(sessionStorageKey);
+    if (restored && available.some((session) => Number(session.id) === restored)) {
+      setSid(restored);
     }
+  }, [sessions.data, cid, sid, sessionStorageKey]);
+  useEffect(() => {
+    if (!sid) return;
+    sessionStorage.setItem(sessionStorageKey, String(sid));
     // A newly-created session already has the richer local result, including
     // the live tool trace. Do not immediately replace it with the persisted
     // message shape, which intentionally stores only the conversation body.
@@ -199,8 +213,27 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
       keepImmediateResultForSession.current = undefined;
       return;
     }
-    api.messages(sid).then((x: any) => setMessages(hydrateMessages(unwrap(x))));
-  }, [sid]);
+    const sequence = ++messageLoadSequence.current;
+    setMessageLoading(true);
+    setMessageError("");
+    api.messages(sid)
+      .then((x: any) => {
+        if (sequence === messageLoadSequence.current) {
+          setMessages(hydrateMessages(unwrap(x)));
+        }
+      })
+      .catch((error) => {
+        if (sequence === messageLoadSequence.current) {
+          setMessageError(errorText(error));
+        }
+      })
+      .finally(() => {
+        if (sequence === messageLoadSequence.current) setMessageLoading(false);
+      });
+    return () => {
+      if (sequence === messageLoadSequence.current) messageLoadSequence.current += 1;
+    };
+  }, [sid, sessionStorageKey]);
   useEffect(() => {
     if (followLatest.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: busy ? "auto" : "smooth" });
@@ -221,6 +254,7 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
     setStreamText("");
     let runActivities: Entity[] = [];
     let streamed = "";
+    let activeSessionId = sid;
     try {
       const r: any = await streamAgent(
         {
@@ -230,7 +264,15 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
           top_k: 5,
         },
         (event) => {
-          if (event.type === "model_start") {
+          if (event.type === "persisted" && Number(event.session_id) > 0) {
+            activeSessionId = Number(event.session_id);
+            if (activeSessionId !== sid) {
+              keepImmediateResultForSession.current = activeSessionId;
+              sessionStorage.setItem(sessionStorageKey, String(activeSessionId));
+              setSid(activeSessionId);
+              sessions.reload();
+            }
+          } else if (event.type === "model_start") {
             runActivities = [
               ...runActivities,
               {
@@ -302,10 +344,12 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
           }
         },
       );
-      if (r.session_id !== sid) {
+      activeSessionId = Number(r.session_id);
+      if (activeSessionId !== sid) {
         keepImmediateResultForSession.current = r.session_id;
       }
-      setSid(r.session_id);
+      sessionStorage.setItem(sessionStorageKey, String(activeSessionId));
+      setSid(activeSessionId);
       setMessages((m) => [
         ...m,
         {
@@ -319,6 +363,20 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
       sessions.reload();
     } catch (x) {
       notify(errorText(x));
+      const recoverSessionId = Number(
+        activeSessionId || (x as Error & { sessionId?: number })?.sessionId,
+      );
+      if (recoverSessionId > 0) {
+        try {
+          const persisted = await api.messages(recoverSessionId);
+          setSid(recoverSessionId);
+          sessionStorage.setItem(sessionStorageKey, String(recoverSessionId));
+          setMessages(hydrateMessages(unwrap(persisted)));
+          sessions.reload();
+        } catch {
+          // Keep the optimistic messages visible if recovery is temporarily unavailable.
+        }
+      }
     } finally {
       setBusy(false);
       setActivities([]);
@@ -336,6 +394,9 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
               if (busy) return;
               setCid(Number(v));
               setSid(undefined);
+              sessionStorage.removeItem(sessionStorageKey);
+              setMessages([]);
+              setMessageError("");
             }}
           />
           <button
@@ -343,6 +404,7 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
             disabled={busy}
             onClick={() => {
               setSid(undefined);
+              sessionStorage.removeItem(sessionStorageKey);
               setMessages([]);
               setInput("");
             }}
@@ -358,7 +420,10 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
               className={sid === s.id ? "active" : ""}
               disabled={busy}
               onClick={() => {
-                if (!busy) setSid(s.id);
+                if (!busy) {
+                  sessionStorage.setItem(sessionStorageKey, String(s.id));
+                  setSid(s.id);
+                }
               }}
             >
               <MessageSquareText size={15} />
@@ -372,7 +437,11 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
                   e.stopPropagation();
                   if (busy) return;
                   await api.deleteSession(s.id);
-                  if (sid === s.id) setSid(undefined);
+                  if (sid === s.id) {
+                    setSid(undefined);
+                    setMessages([]);
+                    sessionStorage.removeItem(sessionStorageKey);
+                  }
                   sessions.reload();
                 }}
               />
@@ -390,6 +459,11 @@ export default function ChatPage({ notify }: { notify: (s: string) => void }) {
             followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120;
           }}
         >
+          {(messageLoading || messageError) && (
+            <div className={`chat-history-state ${messageError ? "error" : ""}`}>
+              {messageLoading ? "正在恢复完整对话…" : `对话读取失败：${messageError}`}
+            </div>
+          )}
           {messages.length ? (
             messages.map((m, i) => (
               <div className={`message ${m.role}`} key={m.id || i}>

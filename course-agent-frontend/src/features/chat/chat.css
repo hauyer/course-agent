@@ -70,6 +70,27 @@
   scroll-behavior: smooth;
   padding: 24px;
 }
+
+.chat-history-state {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  width: fit-content;
+  margin: 0 auto 10px;
+  padding: 6px 10px;
+  border: 1px solid #d8dfd7;
+  border-radius: 999px;
+  background: rgba(248, 250, 247, 0.94);
+  color: #728076;
+  font-size: 11px;
+  box-shadow: 0 4px 14px rgba(55, 70, 58, 0.08);
+}
+
+.chat-history-state.error {
+  border-color: #e4c6bb;
+  background: #fff7f3;
+  color: #9b5447;
+}
 .message {
   width: min(100%, 920px);
   margin: 0 auto 18px;

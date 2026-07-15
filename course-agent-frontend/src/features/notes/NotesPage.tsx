@@ -1,15 +1,15 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Eye, Library, Pencil, Plus, RefreshCw, Settings2, Trash2, X } from "lucide-react";
 import { SiNotion, SiObsidian } from "react-icons/si";
 import { api, type Entity } from "../../api";
 import MarkdownContent from "../../components/MarkdownContent";
+import { useAsyncData as useData } from "../../shared/useAsyncData";
 
 const labels:Record<string,string>={summary:"摘要",knowledge_point:"知识点",review:"复盘"};
 function unwrap(data:any):Entity[]{return Array.isArray(data)?data:data?.items||[]}
 function errorText(error:unknown){return error instanceof Error?error.message:"操作失败"}
 function dayText(value?:string){return value?new Intl.DateTimeFormat("zh-CN",{year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value)):"—"}
-function useData<T>(loader:()=>Promise<T>,deps:any[]=[]){const[data,setData]=useState<T|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[tick,setTick]=useState(0);useEffect(()=>{let live=true;setLoading(true);loader().then(value=>live&&setData(value)).catch(reason=>live&&setError(errorText(reason))).finally(()=>live&&setLoading(false));return()=>{live=false}},[...deps,tick]);return{data,error,loading,reload:()=>setTick(value=>value+1),setData}}
 function Loading({error}:{error?:string}){return <div className="empty"><RefreshCw className="spin" size={20}/><b>{error||"正在整理数据"}</b><span>{error?"检查后端服务后刷新页面":"请稍候"}</span></div>}
 function Empty({title,text}:{title:string;text:string}){return <div className="empty"><Library size={24}/><b>{title}</b><span>{text}</span></div>}
 function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}){return createPortal(<div className="modal-backdrop" onMouseDown={onClose}><div className={`modal ${wide?"wide":""}`} onMouseDown={event=>event.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose}><X size={18}/></button></div>{children}</div></div>,document.body)}
@@ -306,12 +306,21 @@ function IntegrationSettings({
               />
             </div>
             <p>Token 仅加密保存到当前账户，不会与其他系统用户共享。</p>
+            {config.data.notion_invalid && (
+              <div className="integration-warning" role="alert">
+                {config.data.notion_error_message || "原 Notion Token 已失效，请重新输入后保存。"}
+              </div>
+            )}
             <label>
               Integration Token
               <input
                 name="notion_api_key"
                 type="password"
-                placeholder={config.data.notion_api_key_hint || "secret_..."}
+                placeholder={
+                  config.data.notion_invalid
+                    ? "请重新输入 Notion Token"
+                    : config.data.notion_api_key_hint || "secret_..."
+                }
               />
             </label>
             <div className="form-row">

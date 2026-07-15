@@ -22,6 +22,48 @@ RelationType = Literal[
 ]
 
 
+_SCORE_WORDS = {
+    "very_high": 0.95,
+    "very high": 0.95,
+    "high": 0.85,
+    "medium": 0.6,
+    "moderate": 0.6,
+    "low": 0.35,
+    "very_low": 0.15,
+    "very low": 0.15,
+    "高": 0.85,
+    "中": 0.6,
+    "低": 0.35,
+}
+
+
+def _coerce_unit_score(value, default: float = 0.5) -> float:
+    """Accept common LLM score formats while keeping the stored range strict."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, str):
+        text = value.strip().casefold()
+        if text in _SCORE_WORDS:
+            return _SCORE_WORDS[text]
+        is_percent = text.endswith("%")
+        if is_percent:
+            text = text[:-1].strip()
+        try:
+            number = float(text)
+        except ValueError:
+            return default
+        if is_percent or 1 < number <= 100:
+            number /= 100
+    else:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+        if 1 < number <= 100:
+            number /= 100
+    return max(0.0, min(1.0, number))
+
+
 class KnowledgeGraphJobResponse(BaseModel):
     id: int
     user_id: int
@@ -94,6 +136,11 @@ class ExtractedKnowledgeNode(BaseModel):
     confidence: float = Field(default=0.5, ge=0, le=1)
     chunk_ids: list[int] = Field(..., min_length=1, max_length=20)
 
+    @field_validator("importance", "confidence", mode="before")
+    @classmethod
+    def normalize_score(cls, value):
+        return _coerce_unit_score(value)
+
     @field_validator("name", "node_type")
     @classmethod
     def strip_text(cls, value: str) -> str:
@@ -110,6 +157,11 @@ class ExtractedKnowledgeEdge(BaseModel):
     weight: float = Field(default=0.5, ge=0, le=1)
     confidence: float = Field(default=0.5, ge=0, le=1)
     chunk_ids: list[int] = Field(..., min_length=1, max_length=20)
+
+    @field_validator("weight", "confidence", mode="before")
+    @classmethod
+    def normalize_score(cls, value):
+        return _coerce_unit_score(value)
 
 
 class KnowledgeExtractionBatch(BaseModel):

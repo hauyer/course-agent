@@ -507,6 +507,7 @@ export async function streamAgent(
   const decoder = new TextDecoder();
   let buffer = "";
   let result: Entity = {};
+  let persisted: Entity = {};
   while (true) {
     const { done, value } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
@@ -521,11 +522,19 @@ export async function streamAgent(
       if (!payload || payload === "[DONE]") continue;
       const event = JSON.parse(payload);
       onEvent(event);
+      if (event.type === "persisted") persisted = event;
       if (event.type === "result") result = event;
       if (event.type === "error")
-        throw new Error(event.message || "Agent 执行失败");
+        throw Object.assign(new Error(event.message || "Agent 执行失败"), {
+          sessionId: event.session_id || persisted.session_id,
+        });
     }
     if (done) break;
+  }
+  if (!result.session_id) {
+    throw Object.assign(new Error("Agent 连接提前结束，已保留当前对话记录"), {
+      sessionId: persisted.session_id,
+    });
   }
   return result;
 }

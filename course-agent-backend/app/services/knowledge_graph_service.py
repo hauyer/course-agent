@@ -66,7 +66,12 @@ def _utcnow() -> datetime:
 def _clean_error(error: Exception | str) -> str:
     text = " ".join(str(error).split())
     text = re.sub(r"(?:sk-|key-|Bearer\s+)[A-Za-z0-9._-]+", "[secret]", text)
-    return text[:1000] or "未知错误"
+    lowered = text.casefold()
+    if "validation error" in lowered or "validation errors" in lowered:
+        return "模型返回的结构化字段格式不符合约定，已跳过该批资料"
+    if "json" in lowered and ("decode" in lowered or "expecting" in lowered):
+        return "模型未返回有效的 JSON 结构，已跳过该批资料"
+    return text[:500] or "未知错误"
 
 
 def normalize_node_name(value: str) -> str:
@@ -528,7 +533,21 @@ def process_knowledge_graph_job(
                 )
 
         final_status = "partial" if failures else "succeeded"
-        if final_status == "succeeded":
+        has_previous_active = (
+            db.query(KnowledgeGraphJob.id)
+            .filter(
+                KnowledgeGraphJob.user_id == user_id,
+                KnowledgeGraphJob.course_id == course_id,
+                KnowledgeGraphJob.is_active.is_(True),
+                KnowledgeGraphJob.id != job.id,
+            )
+            .first()
+            is not None
+        )
+        # A partial rebuild must never replace a known-good graph. For a first
+        # build, however, verified nodes from successful batches are useful and
+        # should be viewable instead of leaving the user with an empty screen.
+        if final_status == "succeeded" or not has_previous_active:
             (
                 db.query(KnowledgeGraphJob)
                 .filter(
@@ -570,11 +589,27 @@ def get_active_knowledge_graph(
             KnowledgeGraphJob.user_id == user_id,
             KnowledgeGraphJob.course_id == course_id,
             KnowledgeGraphJob.is_active.is_(True),
-            KnowledgeGraphJob.status == "succeeded",
+            KnowledgeGraphJob.status.in_(("succeeded", "partial")),
         )
         .order_by(KnowledgeGraphJob.id.desc())
         .first()
     )
+    # Compatibility for partial graphs produced before 1.1.0 made verified
+    # partial results active. Prefer an explicitly active version above; only
+    # fall back when no active graph exists, and never mutate version state in
+    # this read path.
+    if job is None:
+        job = (
+            db.query(KnowledgeGraphJob)
+            .filter(
+                KnowledgeGraphJob.user_id == user_id,
+                KnowledgeGraphJob.course_id == course_id,
+                KnowledgeGraphJob.status == "partial",
+                KnowledgeGraphJob.node_count > 0,
+            )
+            .order_by(KnowledgeGraphJob.id.desc())
+            .first()
+        )
     if job is None:
         return None
     nodes = (

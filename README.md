@@ -64,11 +64,17 @@ course-agent/
 ├─ course-agent-frontend/      React 页面与 Electron 桌面程序
 │  ├─ src/features/            课程、资料、问答、计划、笔记等业务模块
 │  ├─ src/components/          通用组件
+│  ├─ src/shared/              通用异步状态与跨业务基础能力
 │  ├─ electron/                桌面主进程与运行配置
 │  └─ package.json
 ├─ .github/workflows/          持续集成检查
 └─ README.md
 ```
+
+本地还可能看到 `.venv`、`node_modules`、`dist`、`release-*`、`uploads`、
+`chroma_db`、`vite.config.js` 等目录或文件。它们分别属于本机依赖、构建产物、
+用户资料、向量索引或 TypeScript 生成文件，均已由根 `.gitignore` 排除，不属于
+GitHub 源码结构。为了保留本机可运行环境，日常整理仓库时不需要删除它们。
 
 ## 1.1 余弦检索
 
