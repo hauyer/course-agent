@@ -9,7 +9,7 @@
 - **今日总览**：汇总待办任务、进行中计划、课程资料和近 14 天学习投入。
 - **课程管理**：维护课程名称、教师、学期和课程说明，并支持搜索与筛选。
 - **资料库**：上传并解析 PDF、Word、PowerPoint、Markdown 和文本资料，后台完成分块与向量化。
-- **知识检索**：限定指定课程检索原文片段，展示页码、相关度和资料来源。
+- **知识检索**：使用 SentenceTransformer 与 ChromaDB cosine 空间，在当前用户的指定课程内检索原文片段，展示页码、真实余弦相似度和资料来源。
 - **任务管理**：按状态和优先级管理学习任务，任务完成后自动计入学习时长。
 - **学习计划**：将阶段目标拆分为每日任务，也可以让 Agent 根据已有课程生成计划。
 - **学习记录**：记录实际投入、学习内容与复盘想法，形成可回顾的学习轨迹。
@@ -67,6 +67,35 @@ course-agent/
 ├─ .github/workflows/          持续集成检查
 └─ README.md
 ```
+
+## 1.1 余弦检索
+
+1.1 将原有“归一化向量 + 默认 L2 collection”升级为独立的显式 cosine collection，同时完整保留旧索引用于回滚：
+
+- 资料片段与查询使用同一个 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` 模型。
+- 两端均使用 `normalize_embeddings=True`。
+- 新 collection：`course_material_chunks_v1_1_cosine`。
+- Chroma cosine distance 定义为 `1 - cosine_similarity`。
+- 接口中的 `similarity_score = 1 - distance`，是真实余弦相似度。
+- Chroma 初筛和 MySQL 二次校验都限定 `user_id + course_id`。
+- 默认最低相似度为 `0.35`，低于阈值的片段不会交给 Agent。
+- 普通知识检索、Agent 上下文和回答引用共用同一个检索服务。
+
+先 dry-run，再重建和校验；脚本不会修改 `.env` 或删除旧 collection：
+
+```powershell
+cd course-agent-backend
+.\.venv\Scripts\python.exe scripts\rebuild_cosine_vectors.py
+.\.venv\Scripts\python.exe scripts\rebuild_cosine_vectors.py --apply --yes
+.\.venv\Scripts\python.exe scripts\validate_cosine_collection.py
+```
+
+详细说明见：
+
+- [余弦检索原理与 API](docs/v1.1-cosine-retrieval.md)
+- [向量迁移与切换](docs/v1.1-vector-migration.md)
+- [回滚方案](docs/v1.1-retrieval-rollback.md)
+- [测试报告](docs/v1.1-retrieval-test-report.md)
 
 ## 下载与使用
 
