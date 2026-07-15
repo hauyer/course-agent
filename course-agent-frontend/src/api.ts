@@ -139,6 +139,40 @@ export interface KnowledgeGraph {
   edges: KnowledgeGraphEdge[];
 }
 
+export interface SemanticSearchRequest {
+  course_id: number;
+  query: string;
+  top_k?: number;
+  min_similarity?: number;
+  material_ids?: number[];
+  file_types?: string[];
+}
+
+export interface SemanticSearchItem {
+  vector_id: string;
+  chunk_id: number;
+  chunk_index: number;
+  course_id: number;
+  course_name: string;
+  material_id: number;
+  material_title: string;
+  file_type?: string | null;
+  page_no?: number | null;
+  content: string;
+  distance: number;
+  similarity_score: number;
+  similarity_percent: number;
+}
+
+export interface SemanticSearchResponse {
+  course_id: number;
+  query: string;
+  metric: "cosine";
+  min_similarity: number;
+  total: number;
+  results: SemanticSearchItem[];
+}
+
 export function uploadRequest<T = any>(
   endpoint: string,
   body: FormData,
@@ -293,8 +327,11 @@ export const api = {
   deleteMaterial: (id: number) =>
     request(`/materials/${id}`, { method: "DELETE" }),
   deleteAllMaterials: () => request("/materials", { method: "DELETE" }),
-  search: (body: Entity) =>
-    request("/search/semantic", { method: "POST", body: JSON.stringify(body) }),
+  search: (body: SemanticSearchRequest) =>
+    request<SemanticSearchResponse>("/search/semantic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   tasks: (query = "") => request(`/tasks${query ? `?${query}` : ""}`),
   taskOverview: () => request("/tasks/overview"),
   createTask: (body: Entity) =>

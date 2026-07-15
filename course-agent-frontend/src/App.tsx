@@ -42,7 +42,13 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { api, streamAgent, type Entity } from "./api";
+import {
+  api,
+  streamAgent,
+  type Entity,
+  type SemanticSearchItem,
+  type SemanticSearchResponse,
+} from "./api";
 
 type Page =
   | "dashboard"
@@ -1163,20 +1169,21 @@ function KnowledgeSearch() {
   const courses = useData(() => api.courses(), []),
     [cid, setCid] = useState(""),
     [q, setQ] = useState(""),
-    [results, setResults] = useState<Entity[]>([]),
+    [response, setResponse] = useState<SemanticSearchResponse | null>(null),
     [busy, setBusy] = useState(false),
     [err, setErr] = useState("");
+  const results: SemanticSearchItem[] = response?.results || [];
   const run = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setErr("");
     try {
-      const r: any = await api.search({
+      const r = await api.search({
         course_id: Number(cid),
         query: q,
         top_k: 10,
       });
-      setResults(r.results || []);
+      setResponse(r);
     } catch (x) {
       setErr(errorText(x));
     } finally {
@@ -1217,7 +1224,11 @@ function KnowledgeSearch() {
         <div className="results-head">
           <h2>检索结果</h2>
           <span>
-            {results.length ? `${results.length} 条依据` : "等待检索"}
+            {results.length
+              ? `${results.length} 条依据 · 余弦相似度越高越相关`
+              : response
+                ? `阈值 ${Math.round(response.min_similarity * 100)}%`
+                : "等待检索"}
           </span>
         </div>
         <div className="results-list">
@@ -1231,18 +1242,29 @@ function KnowledgeSearch() {
                   <div className="result-meta">
                     <b>{r.material_title}</b>
                     <span>
-                      {r.page_no ? `第 ${r.page_no} 页 · ` : ""}相关度{" "}
-                      {Math.round(r.similarity_score * 100)}%
+                      {r.page_no ? `第 ${r.page_no} 页 · ` : ""}余弦相似度{" "}
+                      {Number(r.similarity_percent).toFixed(2)}%
                     </span>
                   </div>
                   <p>{r.content}</p>
+                  <small className="retrieval-metric">
+                    片段 {r.chunk_index} · 余弦距离 {r.distance.toFixed(4)}
+                  </small>
                 </div>
               </article>
             ))
           ) : (
             <Empty
-              title="从资料中寻找依据"
-              text="先为资料建立检索索引，再输入自然语言问题"
+              title={
+                response
+                  ? "当前课程资料中未找到相似度足够高的内容"
+                  : "从资料中寻找依据"
+              }
+              text={
+                response
+                  ? "可以换一种问法，或检查资料是否已完成向量索引。"
+                  : "先为资料建立检索索引，再输入自然语言问题"
+              }
             />
           )}
         </div>

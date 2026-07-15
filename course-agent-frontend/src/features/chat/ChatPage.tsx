@@ -64,7 +64,10 @@ function CitationReferences({ items }: { items: Entity[] }) {
                     {citation.page_no !== null && citation.page_no !== undefined
                       ? `第 ${citation.page_no} 页 · `
                       : ""}
-                    片段 {citation.chunk_index} · 相关度 {Math.round(Number(citation.similarity_score || 0) * 100)}%
+                    片段 {citation.chunk_index} · 余弦相似度 {Number(
+                      citation.similarity_percent ??
+                        Number(citation.similarity_score || 0) * 100,
+                    ).toFixed(2)}%
                   </span>
                 </summary>
                 <p>{String(citation.content || "")}</p>

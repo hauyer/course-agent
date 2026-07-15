@@ -34,3 +34,9 @@
   color: #607063;
   font-size: 11px;
 }
+.retrieval-metric {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
