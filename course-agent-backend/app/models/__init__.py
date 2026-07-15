@@ -16,3 +16,10 @@ from app.models.integration_config import IntegrationConfig
 from app.models.llm_config import LlmConfig
 from app.models.agent_memory import AgentMemory
 from app.models.audit_log import AuditLog
+from app.models.knowledge_graph import (
+    KnowledgeGraphJob,
+    KnowledgeNode,
+    KnowledgeEdge,
+    KnowledgeNodeSource,
+    KnowledgeEdgeSource,
+)

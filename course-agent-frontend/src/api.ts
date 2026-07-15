@@ -74,6 +74,71 @@ export interface MultiCoursePlanCreateResult {
   created: boolean;
 }
 
+export type KnowledgeGraphJobStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "partial"
+  | "failed"
+  | "cancelled";
+
+export interface KnowledgeGraphJob {
+  id: number;
+  user_id: number;
+  course_id: number;
+  status: KnowledgeGraphJobStatus;
+  progress: number;
+  stage: string;
+  source_hash?: string | null;
+  is_active: boolean;
+  node_count: number;
+  edge_count: number;
+  error_message?: string | null;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface KnowledgeGraphSource {
+  course_id: number;
+  course_name: string;
+  material_id: number;
+  material_title: string;
+  chunk_id: number;
+  chunk_index: number;
+  page_no?: number | null;
+  evidence_text: string;
+}
+
+export interface KnowledgeGraphNode {
+  id: number;
+  name: string;
+  node_type: string;
+  description?: string | null;
+  importance: number;
+  confidence: number;
+  sources: KnowledgeGraphSource[];
+}
+
+export interface KnowledgeGraphEdge {
+  id: number;
+  source: number;
+  target: number;
+  relation_type: string;
+  weight: number;
+  confidence: number;
+  sources: KnowledgeGraphSource[];
+}
+
+export interface KnowledgeGraph {
+  course_id: number;
+  course_name: string;
+  job_id: number;
+  generated_at: string;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+}
+
 export function uploadRequest<T = any>(
   endpoint: string,
   body: FormData,
@@ -187,6 +252,25 @@ export const api = {
   updateCourse: (id: number, body: Entity) =>
     request(`/courses/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteCourse: (id: number) => request(`/courses/${id}`, { method: "DELETE" }),
+  createKnowledgeGraphJob: (courseId: number) =>
+    request<KnowledgeGraphJob>(`/courses/${courseId}/knowledge-graph/jobs`, {
+      method: "POST",
+    }),
+  knowledgeGraphJob: (courseId: number, jobId: number) =>
+    request<KnowledgeGraphJob>(
+      `/courses/${courseId}/knowledge-graph/jobs/${jobId}`,
+    ),
+  knowledgeGraph: (courseId: number) =>
+    request<KnowledgeGraph>(`/courses/${courseId}/knowledge-graph`),
+  knowledgeGraphVersions: (courseId: number) =>
+    request<{ total: number; items: KnowledgeGraphJob[] }>(
+      `/courses/${courseId}/knowledge-graph/versions`,
+    ),
+  cancelKnowledgeGraphJob: (courseId: number, jobId: number) =>
+    request<{ status: "cancelled" | "deleted" }>(
+      `/courses/${courseId}/knowledge-graph/jobs/${jobId}`,
+      { method: "DELETE" },
+    ),
   materials: (courseId: number) =>
     request<Entity[]>(`/courses/${courseId}/materials`),
   uploadMaterial: (

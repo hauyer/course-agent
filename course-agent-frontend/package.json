@@ -12,12 +12,14 @@
     "backend:build": "powershell -ExecutionPolicy Bypass -File ../course-agent-backend/build-desktop.ps1",
     "dist": "powershell -ExecutionPolicy Bypass -File ./build-release.ps1"
   },
-  "dependencies": {},
+  "dependencies": {
+    "echarts": "^6.1.0"
+  },
   "devDependencies": {
-    "@vitejs/plugin-react": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
     "electron": "latest",
     "electron-builder": "latest",
     "katex": "^0.17.0",

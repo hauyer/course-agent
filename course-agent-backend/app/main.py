@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.database import Base, engine, get_db
+from app.database import Base, SessionLocal, engine, get_db
 from app.models import (
     User,
     Course,
@@ -26,6 +26,11 @@ from app.models import (
     LlmConfig,
     AgentMemory,
     AuditLog,
+    KnowledgeGraphJob,
+    KnowledgeNode,
+    KnowledgeEdge,
+    KnowledgeNodeSource,
+    KnowledgeEdgeSource,
 )
 from app.routers import (
     auth,
@@ -40,8 +45,10 @@ from app.routers import (
     dashboard,
     audit,
     backup,
+    knowledge_graph,
 )
 from app.services.audit_service import write_audit_log
+from app.services.knowledge_graph_service import recover_interrupted_knowledge_graph_jobs
 
 
 #启动时自动创建数据库表
@@ -181,6 +188,12 @@ app.include_router(
 )
 
 app.include_router(
+    knowledge_graph.router,
+    prefix="/api/courses",
+    tags=["课程知识图谱"],
+)
+
+app.include_router(
     audit.router,
     prefix="/api/audit",
     tags=["运行审计"],
@@ -191,6 +204,15 @@ app.include_router(
     prefix="/api/backup",
     tags=["数据备份"],
 )
+
+
+@app.on_event("startup")
+def recover_interrupted_background_jobs():
+    db = SessionLocal()
+    try:
+        recover_interrupted_knowledge_graph_jobs(db)
+    finally:
+        db.close()
 
 # 定义根路径的GET请求处理函数，返回一个欢迎信息和应用状态
 @app.get("/")

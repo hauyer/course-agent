@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { BookOpen, Library, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { BookOpen, Library, Network, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { api, type Entity } from "../../api";
+import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
 
 function unwrap(data: any): Entity[] { return Array.isArray(data) ? data : data?.items || []; }
 function errorText(error: unknown) { return error instanceof Error ? error.message : "操作失败"; }
@@ -17,7 +18,8 @@ export default function CoursesPage({ notify }: { notify: (s: string) => void })
     [edit, setEdit] = useState<Entity | null | undefined>(),
     [keyword, setKeyword] = useState(""),
     [teacher, setTeacher] = useState(""),
-    [semester, setSemester] = useState("");
+    [semester, setSemester] = useState(""),
+    [graphCourse, setGraphCourse] = useState<Entity | null>(null);
   const allCourses = unwrap(data);
   const teachers = useMemo(
     () =>
@@ -151,6 +153,10 @@ export default function CoursesPage({ notify }: { notify: (s: string) => void })
                 </div>
               </dl>
               <div className="card-actions">
+                <button className="btn subtle" onClick={() => setGraphCourse(c)}>
+                  <Network size={14} />
+                  知识图谱
+                </button>
                 <button className="btn subtle" onClick={() => setEdit(c)}>
                   编辑
                 </button>
@@ -214,6 +220,13 @@ export default function CoursesPage({ notify }: { notify: (s: string) => void })
             />
           </form>
         </Modal>
+      )}
+      {graphCourse && (
+        <KnowledgeGraphPanel
+          course={graphCourse}
+          onClose={() => setGraphCourse(null)}
+          notify={notify}
+        />
       )}
     </>
   );
